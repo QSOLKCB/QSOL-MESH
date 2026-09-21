@@ -45,7 +45,11 @@ fn print_inspect(json: bool) {
             env::consts::OS
         );
     } else {
-        println!("arch={} os={} available_parallelism={workers}", env::consts::ARCH, env::consts::OS);
+        println!(
+            "arch={} os={} available_parallelism={workers}",
+            env::consts::ARCH,
+            env::consts::OS
+        );
     }
 }
 
