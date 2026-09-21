@@ -29,12 +29,22 @@ fn main() -> ExitCode {
         return ExitCode::from(2);
     };
     let json = args[1..].iter().any(|arg| arg == "--json");
-    let unsupported: Vec<_> = args[1..].iter().filter(|arg| arg.as_str() != "--json").collect();
+    let unsupported: Vec<_> = args[1..]
+        .iter()
+        .filter(|arg| arg.as_str() != "--json")
+        .collect();
     if !unsupported.is_empty() {
         eprintln!("mesh: unsupported arguments in architecture bootstrap: {unsupported:?}");
         return ExitCode::from(2);
     }
-    println!("{}", if json { json_stub(command) } else { text_stub(command) });
+    println!(
+        "{}",
+        if json {
+            json_stub(command)
+        } else {
+            text_stub(command)
+        }
+    );
     ExitCode::SUCCESS
 }
 
