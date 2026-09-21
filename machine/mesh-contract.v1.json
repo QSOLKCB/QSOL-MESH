@@ -1,0 +1,30 @@
+{
+  "schema":"qsol.mesh.contract.v1",
+  "contract_version":"1.0.0",
+  "authority":{
+    "mesh_owns":["topology-observation","calibration","execution-planning","scheduling","memory-placement","transfer-orchestration","executor-lifecycle","execution-evidence"],
+    "workload_owns":["semantic-meaning","input-contract","output-contract","partition-admissibility","exactness-or-tolerance","reduction-semantics","verification-oracle","side-effect-commit-semantics"]
+  },
+  "invariants":[
+    {"id":"MESH-INV-001","rule":"mesh_execution_policy_must_not_change_workload_semantics","blocking":true},
+    {"id":"MESH-INV-002","rule":"hardware_identity_may_generate_candidates_but_may_not_select_performance_winner_without_measurement","blocking":true},
+    {"id":"MESH-INV-003","rule":"backends_are_execution_mechanisms_not_semantic_authorities","blocking":true},
+    {"id":"MESH-INV-004","rule":"verified_status_requires_workload_verification_contract_to_pass","blocking":true},
+    {"id":"MESH-INV-005","rule":"verification_mismatch_must_be_reported_and_not_hidden_by_fallback","blocking":true},
+    {"id":"MESH-INV-006","rule":"managed_allocations_and_transfers_require_explicit_domain_ownership_and_lifetime","blocking":true},
+    {"id":"MESH-INV-007","rule":"deterministic_workloads_preserve_declared_reduction_and_commit_order_independent_of_completion_order","blocking":true},
+    {"id":"MESH-INV-008","rule":"automatic_calibration_uses_finite_versioned_auditable_candidate_budget","blocking":true},
+    {"id":"MESH-INV-009","rule":"canonical_or_reference_execution_remains_available_until_explicit_versioned_replacement","blocking":true},
+    {"id":"MESH-INV-010","rule":"performance_or_identity_evidence_must_not_expand_semantic_or_physical_claims","blocking":true},
+    {"id":"MESH-INV-011","rule":"receipts_distinguish_requested_configuration_from_observed_effective_execution","blocking":true},
+    {"id":"MESH-INV-012","rule":"memory_plans_must_not_double_count_same_physical_storage","blocking":true}
+  ],
+  "cli_commands":["inspect","calibrate","plan","run","verify","receipt"],
+  "initial_backends":["cpu"],
+  "deferred_backends":["nvidia-cuda"],
+  "first_external_adapter":"QSOLKCB/GALAXY",
+  "pr1_scope":{
+    "allowed":["contracts","machine-readable-agent-policy","rust-cli-skeleton","contract-validation-ci"],
+    "forbidden":["cuda-kernel","galaxy-source-copy","dynamic-scheduler","automatic-performance-promotion","managed-memory-policy"]
+  }
+}
