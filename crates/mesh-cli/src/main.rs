@@ -1,21 +1,101 @@
 // SPDX-License-Identifier: Apache-2.0
 
-use qsol_mesh_core::{Command, CONTRACT_SCHEMA, CONTRACT_VERSION};
+use qsol_mesh_core::{
+    available_workers, run_smoke, Command, CONTRACT_SCHEMA, CONTRACT_VERSION, SMOKE_WORKLOAD_ID,
+};
 use std::{env, process::ExitCode};
 
 fn usage() -> &'static str {
-    "QSOL-MESH architecture bootstrap\n\nUsage:\n  mesh <inspect|calibrate|plan|run|verify|receipt> [--json]\n  mesh --help\n\nPR #1 exposes command identity only. Execution backends are intentionally not implemented.\n"
+    "Usage:\n  mesh inspect [--json]\n  mesh run smoke [--items N] [--workers N] [--json]\n  mesh verify smoke [--items N] [--workers N] [--json]\n  mesh <calibrate|plan|receipt> [--json]\n"
 }
 
-fn json_stub(command: Command) -> String {
-    format!(
-        "{{\"schema\":\"qsol.mesh.cli-stub.v1\",\"contract_schema\":\"{CONTRACT_SCHEMA}\",\"contract_version\":\"{CONTRACT_VERSION}\",\"command\":\"{}\",\"status\":\"not-implemented\",\"semantic_authority\":\"workload\",\"execution_authority\":\"mesh\"}}",
-        command.as_str()
-    )
+fn parse_smoke(args: &[String]) -> Result<(u64, usize, bool), String> {
+    let (mut items, mut workers, mut json) = (100_000_u64, available_workers(), false);
+    let mut i = 0;
+    while i < args.len() {
+        match args[i].as_str() {
+            "--json" => {
+                json = true;
+                i += 1;
+            }
+            "--items" | "--workers" => {
+                let flag = args[i].as_str();
+                let value = args
+                    .get(i + 1)
+                    .ok_or_else(|| format!("{flag} requires a value"))?;
+                if flag == "--items" {
+                    items = value.parse().map_err(|_| "--items must be u64")?;
+                } else {
+                    workers = value.parse().map_err(|_| "--workers must be usize")?;
+                }
+                i += 2;
+            }
+            other => return Err(format!("unsupported argument: {other}")),
+        }
+    }
+    Ok((items, workers, json))
 }
 
-fn text_stub(command: Command) -> String {
-    format!("mesh {}: not implemented in architecture bootstrap; semantic authority remains with the workload", command.as_str())
+fn print_inspect(json: bool) {
+    let workers = available_workers();
+    if json {
+        println!(
+            "{{\"schema\":\"qsol.mesh.inspect.v1\",\"arch\":\"{}\",\"os\":\"{}\",\"available_parallelism\":{workers}}}",
+            env::consts::ARCH,
+            env::consts::OS
+        );
+    } else {
+        println!(
+            "arch={} os={} available_parallelism={workers}",
+            env::consts::ARCH,
+            env::consts::OS
+        );
+    }
+}
+
+fn print_smoke(command: Command, args: &[String]) -> Result<(), String> {
+    let (items, workers, json) = parse_smoke(args)?;
+    let run = run_smoke(items, workers).map_err(str::to_owned)?;
+    if json {
+        let available = available_workers();
+        println!(
+            "{{\"schema\":\"qsol.mesh.smoke-receipt.v1\",\"source_identity\":{{\"runtime\":\"qsol-mesh-cli\",\"mesh_contract_schema\":\"{CONTRACT_SCHEMA}\",\"mesh_contract_version\":\"{CONTRACT_VERSION}\"}},\"workload_identity\":{{\"workload_id\":\"{SMOKE_WORKLOAD_ID}\",\"workload_contract_version\":\"1.0.0\"}},\"requested_configuration\":{{\"command\":\"{}\",\"items\":{},\"workers\":{}}},\"observed_topology\":{{\"arch\":\"{}\",\"os\":\"{}\",\"available_parallelism\":{}}},\"effective_execution\":{{\"backend\":\"cpu\",\"workers\":{},\"reduction\":\"worker-index-order-wrapping-u64\"}},\"memory_plan\":{{\"domains\":[\"host-pageable\"],\"per_item_materialization\":false,\"temporary_state\":\"O(workers)\"}},\"calibration\":{{\"performed\":false}},\"verification\":{{\"kind\":\"scalar-reference-equality\",\"checksum\":\"{:016x}\",\"reference\":\"{:016x}\",\"verified\":true}},\"claim_boundary\":\"runtime-bring-up-only-not-performance-evidence\"}}",
+            command.as_str(),
+            run.items,
+            run.requested_workers,
+            env::consts::ARCH,
+            env::consts::OS,
+            available,
+            run.effective_workers,
+            run.checksum,
+            run.reference
+        );
+    } else {
+        println!(
+            "{} items={} workers={}/{} checksum={:016x} verified=true",
+            SMOKE_WORKLOAD_ID,
+            run.items,
+            run.effective_workers,
+            run.requested_workers,
+            run.checksum
+        );
+    }
+    Ok(())
+}
+
+fn stub(command: Command, args: &[String]) -> Result<(), String> {
+    if args.iter().any(|arg| arg != "--json") {
+        return Err("only --json is accepted for unimplemented commands".into());
+    }
+    if args.iter().any(|arg| arg == "--json") {
+        println!(
+            "{{\"schema\":\"qsol.mesh.cli-stub.v1\",\"contract_schema\":\"{CONTRACT_SCHEMA}\",\"contract_version\":\"{CONTRACT_VERSION}\",\"command\":\"{}\",\"status\":\"not-implemented\"}}",
+            command.as_str()
+        );
+    } else {
+        println!("mesh {}: not implemented", command.as_str());
+    }
+    Ok(())
 }
 
 fn main() -> ExitCode {
@@ -24,38 +104,32 @@ fn main() -> ExitCode {
         print!("{}", usage());
         return ExitCode::SUCCESS;
     }
+
     let Some(command) = Command::parse(&args[0]) else {
         eprintln!("mesh: unknown command: {}\n{}", args[0], usage());
         return ExitCode::from(2);
     };
-    let json = args[1..].iter().any(|arg| arg == "--json");
-    let unsupported: Vec<_> = args[1..]
-        .iter()
-        .filter(|arg| arg.as_str() != "--json")
-        .collect();
-    if !unsupported.is_empty() {
-        eprintln!("mesh: unsupported arguments in architecture bootstrap: {unsupported:?}");
-        return ExitCode::from(2);
-    }
-    println!(
-        "{}",
-        if json {
-            json_stub(command)
-        } else {
-            text_stub(command)
+
+    let result = match command {
+        Command::Inspect => {
+            if args[1..].iter().any(|arg| arg != "--json") {
+                Err("mesh inspect only accepts --json".into())
+            } else {
+                print_inspect(args[1..].iter().any(|arg| arg == "--json"));
+                Ok(())
+            }
         }
-    );
-    ExitCode::SUCCESS
-}
+        Command::Run | Command::Verify if args.get(1).map(String::as_str) == Some("smoke") => {
+            print_smoke(command, &args[2..])
+        }
+        _ => stub(command, &args[1..]),
+    };
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn json_stub_is_explicitly_non_implemented() {
-        let output = json_stub(Command::Inspect);
-        assert!(output.contains("\"status\":\"not-implemented\""));
-        assert!(output.contains("\"semantic_authority\":\"workload\""));
+    match result {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(error) => {
+            eprintln!("mesh: {error}");
+            ExitCode::from(2)
+        }
     }
 }

@@ -6,6 +6,16 @@ MESH separates workload meaning from execution placement. A workload defines wha
 
 Initial CLI: `mesh inspect`, `mesh calibrate`, `mesh plan`, `mesh run`, `mesh verify`, `mesh receipt`.
 
-PR #1 is architecture-first: contracts, machine-readable agent policy, validation CI, and a minimal Rust CLI skeleton. It intentionally contains no CUDA kernel and no copied GALAXY implementation.
-
 Human-readable explanations live at the repository root. Normative automated-agent authority lives under `machine/`.
+
+## Phase 1 CPU bring-up
+
+The first executable workload is deliberately tiny and dependency-free:
+
+```sh
+mesh inspect --json
+mesh run smoke --items 100000 --workers 8 --json
+mesh verify smoke --items 100000 --workers 8 --json
+```
+
+`mesh-smoke-v1` procedurally maps logical IDs to integer values, partitions only contiguous ranges, reduces worker partials in worker-index order, and verifies every run against the scalar reference. It is correctness scaffolding, not a performance benchmark.

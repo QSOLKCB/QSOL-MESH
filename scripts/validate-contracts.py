@@ -50,7 +50,16 @@ for command in mesh["cli_commands"]:
     if f'"{command}"' not in source:
         raise SystemExit(f"CLI contract command missing: {command}")
 
-if "nvidia-cuda" not in mesh["deferred_backends"]:
-    raise SystemExit("PR1 must keep NVIDIA CUDA deferred")
+workload = json.loads((MACHINE / "workloads/smoke-v1.json").read_text(encoding="utf-8"))
+required = set(loaded["workload-contract.v1.json"]["required_fields"])
+missing = required - set(workload)
+if missing:
+    raise SystemExit(f"smoke workload missing required fields: {sorted(missing)}")
+if workload["workload_id"] != "mesh-smoke-v1":
+    raise SystemExit("unexpected smoke workload identity")
+if workload["reduction_contract"]["kind"] != "worker-index-order-wrapping-u64":
+    raise SystemExit("smoke reduction contract drift")
+if workload["verification_contract"] != {"kind":"scalar-reference-equality","fail_closed":True}:
+    raise SystemExit("smoke verification contract drift")
 
 print("QSOL-MESH machine contracts valid")
