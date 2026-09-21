@@ -23,6 +23,15 @@ jobs:
               print(path)
           PY
 
+  release-preflight:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Validate v0.1.0 release candidate
+        run: python3 scripts/release-preflight.py
+
   rust:
     runs-on: ubuntu-24.04
     steps:
