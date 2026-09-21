@@ -5,7 +5,8 @@
 - [x] Machine-readable invariants and AI review policy.
 - [x] Workload/memory/evidence contracts.
 - [x] Minimal Rust CLI skeleton.
-- [ ] Merge PR #1 only with green contract/Rust CI.
+- [x] Merge PR #1 only with green contract/Rust CI.
+- [x] Prepare the v0.1.0 constitutional release manifest, notes, and machine preflight.
 
 ## Phase 1 — deterministic dual-executor proof
 - [ ] MESH-owned synthetic deterministic bring-up workload.

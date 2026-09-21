@@ -1,0 +1,55 @@
+{
+  "schema": "qsol.mesh.release-manifest.v1",
+  "release_version": "0.1.0",
+  "expected_tag": "v0.1.0",
+  "release_title": "QSOL-MESH v0.1.0 — Constitutional Architecture Freeze",
+  "release_class": "immutable-constitutional-baseline",
+  "constitutional_baseline": {
+    "pull_request": 1,
+    "commit_sha": "8a3d03e0fbded1849e40b78c734b9217bf634019",
+    "tree_sha": "66224f422f029a5f598f1db060084257198a251c"
+  },
+  "frozen_surfaces": [
+    {"path":"CONSTITUTION.md","git_blob_sha":"69a010b904fd2958782278a85aec09b0b3c496ca","kind":"human-contract"},
+    {"path":"ARCHITECTURE.md","git_blob_sha":"51ee14574d489b78aedac64f4cef714d98402af3","kind":"human-contract"},
+    {"path":"WORKLOAD-CONTRACT.md","git_blob_sha":"9b602e00a0f112c994f21cca4821a8670a7975c6","kind":"human-contract"},
+    {"path":"MEMORY-MODEL.md","git_blob_sha":"ac7ab3f581efad392239dea6ac4d5fb5b8bf959e","kind":"human-contract"},
+    {"path":"EVIDENCE.md","git_blob_sha":"e8a508b9600f22a8c537b73078541f3c6dcca197","kind":"human-contract"},
+    {"path":"AGENTS.md","git_blob_sha":"79b80cfa943eb4a9ac88c6758930e8ea29ceec74","kind":"agent-entrypoint"},
+    {"path":"machine/mesh-contract.v1.json","git_blob_sha":"a4be517a4722f3f14ca3500eda3b7ef3949b2471","schema":"qsol.mesh.contract.v1","version":"1.0.0"},
+    {"path":"machine/agent-review-policy.v1.json","git_blob_sha":"b003e55b44299fc6b4e0b34758376b02740c5fc1","schema":"qsol.mesh.agent-review-policy.v1","version":"1.0.0"},
+    {"path":"machine/workload-contract.v1.json","git_blob_sha":"ae1488fbb20dda8151d21c1a0ceb63d123b1a093","schema":"qsol.mesh.workload-contract.v1","version":"1.0.0"},
+    {"path":"machine/memory-model.v1.json","git_blob_sha":"a8aebf48aa8d0fdec30cfa20decca577de61df7d","schema":"qsol.mesh.memory-model.v1","version":"1.0.0"},
+    {"path":"machine/evidence-contract.v1.json","git_blob_sha":"2bb9481c069b29d3772e13cf3691af943f57eb73","schema":"qsol.mesh.evidence-contract.v1","version":"1.0.0"},
+    {"path":"rust-toolchain.toml","git_blob_sha":"b8a736cea6165501dec29fc8cc9d3b5c1fc02337","kind":"rust-toolchain","channel":"1.85.1"},
+    {"path":"Cargo.toml","git_blob_sha":"53ffbb500e486e3684c261cb56cadd5d61e6cf70","kind":"workspace"},
+    {"path":"Cargo.lock","git_blob_sha":"13f7e040054b2c99bb1028f4c17bd139b54e22aa","kind":"dependency-lock"},
+    {"path":"crates/mesh-core/src/lib.rs","git_blob_sha":"90ddc55f4ab524f599356c8feed7e54b4987c262","kind":"cli-contract-source"}
+  ],
+  "cli_surface": ["inspect","calibrate","plan","run","verify","receipt"],
+  "review_policy_schema": "qsol.mesh.agent-review-policy.v1",
+  "review_policy_version": "1.0.0",
+  "excluded_capabilities": [
+    "cuda-execution",
+    "galaxy-adapter",
+    "heterogeneous-runtime-execution",
+    "dynamic-scheduling",
+    "managed-memory-policy",
+    "runtime-calibration-implementation",
+    "automatic-performance-promotion"
+  ],
+  "tag_target_policy": {
+    "must_descend_from_constitutional_baseline": true,
+    "must_contain_exact_frozen_blobs": true,
+    "must_contain_release_notes": "RELEASE_NOTES_v0.1.0.md",
+    "must_contain_manifest": "release/manifest-v0.1.0.json",
+    "must_pass_preflight": "scripts/release-preflight.py"
+  },
+  "release_prep_allowed_paths": [
+    ".github/workflows/contracts.yml",
+    "RELEASE_NOTES_v0.1.0.md",
+    "ROADMAP.md",
+    "release/manifest-v0.1.0.json",
+    "scripts/release-preflight.py"
+  ]
+}
