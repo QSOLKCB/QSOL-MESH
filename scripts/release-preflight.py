@@ -149,11 +149,23 @@ for relative_path, policy in FROZEN_SURFACES.items():
         )
 
     recorded = manifest_by_path[relative_path]
-    if recorded.get("git_blob_sha") != expected_blob:
-        fail(f"manifest blob identity mismatch: {relative_path}")
+    expected_entry = {
+        "path": relative_path,
+        "git_blob_sha": expected_blob,
+    }
+    if "kind" in policy:
+        expected_entry["kind"] = policy["kind"]
+    if "schema" in policy:
+        expected_entry["schema"] = policy["schema"]
+        expected_entry["version"] = policy["version"]
+    if "channel" in policy:
+        expected_entry["channel"] = policy["channel"]
 
-    if "kind" in policy and recorded.get("kind") != policy["kind"]:
-        fail(f"manifest kind mismatch: {relative_path}")
+    if recorded != expected_entry:
+        fail(
+            f"manifest frozen-surface entry differs from independent policy: "
+            f"{relative_path}: {recorded!r} != {expected_entry!r}"
+        )
 
     if "schema" in policy:
         payload = json.loads(path.read_text(encoding="utf-8"))
@@ -161,14 +173,6 @@ for relative_path, policy in FROZEN_SURFACES.items():
             fail(f"schema drift: {relative_path}")
         if payload.get(policy["version_field"]) != policy["version"]:
             fail(f"version drift: {relative_path}")
-        if recorded.get("schema") != policy["schema"]:
-            fail(f"manifest schema mismatch: {relative_path}")
-        if recorded.get("version") != policy["version"]:
-            fail(f"manifest version mismatch: {relative_path}")
-
-    if "channel" in policy:
-        if recorded.get("channel") != policy["channel"]:
-            fail(f"manifest toolchain channel mismatch: {relative_path}")
 
 mesh = json.loads((ROOT / "machine/mesh-contract.v1.json").read_text(encoding="utf-8"))
 if mesh.get("cli_commands") != EXPECTED_CLI_SURFACE:
