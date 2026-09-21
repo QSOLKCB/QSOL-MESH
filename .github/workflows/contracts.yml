@@ -47,8 +47,27 @@ jobs:
       - name: CLI smoke
         run: |
           cargo run -q -p qsol-mesh-cli --locked -- inspect --json | grep -q '"available_parallelism":'
-          cargo run -q -p qsol-mesh-cli --locked -- run smoke --items 1000 --workers 4 --json | grep -q '"verified":true'
-          cargo run -q -p qsol-mesh-cli --locked -- verify smoke --items 1000 --workers 4 --json | grep -q '"checksum":"d3886842145b489c"'
+          cargo run -q -p qsol-mesh-cli --locked -- run smoke --items 1000 --workers 4 --json > /tmp/mesh-smoke.json
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          receipt = json.loads(Path("/tmp/mesh-smoke.json").read_text())
+          evidence = json.loads(Path("machine/evidence-contract.v1.json").read_text())
+          workload = json.loads(Path("machine/workloads/smoke-v1.json").read_text())
+          missing = set(evidence["receipt_required_sections"]) - set(receipt)
+          if missing:
+              raise SystemExit(f"smoke receipt missing sections: {sorted(missing)}")
+          if receipt["claim_boundary"] != workload["claim_boundary"]:
+              raise SystemExit("smoke receipt claim boundary drift")
+          if receipt["verification"] != {
+              "kind": "scalar-reference-equality",
+              "checksum": "d3886842145b489c",
+              "reference": "d3886842145b489c",
+              "verified": True,
+          }:
+              raise SystemExit("smoke receipt verification drift")
+          PY
           for command in calibrate plan receipt; do
             cargo run -q -p qsol-mesh-cli --locked -- "$command" --json | grep -q '"status":"not-implemented"'
           done
