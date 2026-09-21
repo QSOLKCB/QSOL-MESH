@@ -57,11 +57,15 @@ fn print_smoke(command: Command, args: &[String]) -> Result<(), String> {
     let (items, workers, json) = parse_smoke(args)?;
     let run = run_smoke(items, workers).map_err(str::to_owned)?;
     if json {
+        let available = available_workers();
         println!(
-            "{{\"schema\":\"qsol.mesh.smoke-receipt.v1\",\"command\":\"{}\",\"workload\":\"{SMOKE_WORKLOAD_ID}\",\"items\":{},\"requested_workers\":{},\"effective_workers\":{},\"checksum\":\"{:016x}\",\"reference\":\"{:016x}\",\"verified\":true,\"reduction\":\"worker-index-order-wrapping-u64\",\"claim_boundary\":\"runtime-bring-up-only\"}}",
+            "{{\"schema\":\"qsol.mesh.smoke-receipt.v1\",\"source_identity\":{{\"runtime\":\"qsol-mesh-cli\",\"mesh_contract_schema\":\"{CONTRACT_SCHEMA}\",\"mesh_contract_version\":\"{CONTRACT_VERSION}\"}},\"workload_identity\":{{\"workload_id\":\"{SMOKE_WORKLOAD_ID}\",\"workload_contract_version\":\"1.0.0\"}},\"requested_configuration\":{{\"command\":\"{}\",\"items\":{},\"workers\":{}}},\"observed_topology\":{{\"arch\":\"{}\",\"os\":\"{}\",\"available_parallelism\":{}}},\"effective_execution\":{{\"backend\":\"cpu\",\"workers\":{},\"reduction\":\"worker-index-order-wrapping-u64\"}},\"memory_plan\":{{\"domains\":[\"host-pageable\"],\"per_item_materialization\":false,\"temporary_state\":\"O(workers)\"}},\"calibration\":{{\"performed\":false}},\"verification\":{{\"kind\":\"scalar-reference-equality\",\"checksum\":\"{:016x}\",\"reference\":\"{:016x}\",\"verified\":true}},\"claim_boundary\":\"runtime-bring-up-only-not-performance-evidence\"}}",
             command.as_str(),
             run.items,
             run.requested_workers,
+            env::consts::ARCH,
+            env::consts::OS,
+            available,
             run.effective_workers,
             run.checksum,
             run.reference
