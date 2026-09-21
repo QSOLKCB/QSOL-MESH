@@ -24,6 +24,7 @@ jobs:
           PY
 
   release-preflight:
+    if: ${{ (github.event_name == 'pull_request' && github.head_ref == 'release/v0.1.0-prep') || (github.event_name == 'push' && github.ref == 'refs/tags/v0.1.0') }}
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
