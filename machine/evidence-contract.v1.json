@@ -1,0 +1,13 @@
+{
+  "schema":"qsol.mesh.evidence-contract.v1",
+  "contract_version":"1.0.0",
+  "receipt_required_sections":["source_identity","workload_identity","requested_configuration","observed_topology","effective_execution","memory_plan","calibration","verification","claim_boundary"],
+  "claim_rules":{
+    "single_host_implies_universal_speedup":false,
+    "checksum_implies_physical_truth":false,
+    "requested_topology_may_be_reported_as_effective_without_observation":false,
+    "model_name_may_be_reported_as_performance_authority":false,
+    "verification_required_for_verified_status":true
+  },
+  "versioned_schema_required":true
+}

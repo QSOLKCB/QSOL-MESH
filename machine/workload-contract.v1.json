@@ -1,0 +1,8 @@
+{
+  "schema":"qsol.mesh.workload-contract.v1",
+  "contract_version":"1.0.0",
+  "required_fields":["workload_id","workload_contract_version","logical_domain","partition_contract","partial_result_contract","reduction_contract","verification_contract","exactness_contract","memory_contract","side_effect_contract","claim_boundary"],
+  "partition_rules":{"mesh_may_partition_only_at_declared_boundaries":true,"completion_order_may_change_commit_order":false},
+  "executor_rules":{"executor_may_redefine_workload":false,"backend_specific_semantics_allowed_without_workload_version_change":false},
+  "first_planned_adapter":{"repository":"QSOLKCB/GALAXY","source_copy_into_mesh":false,"adapter_boundary_required":true}
+}

@@ -1,0 +1,17 @@
+{
+  "schema":"qsol.mesh.memory-model.v1",
+  "contract_version":"1.0.0",
+  "domains":[{"id":"host-pageable","initial":true},{"id":"host-pinned","initial":true},{"id":"accelerator-local","initial":true}],
+  "rules":{
+    "explicit_ownership_required":true,
+    "explicit_lifetime_required":true,
+    "transfer_requires_source_destination_and_byte_extent":true,
+    "pinned_memory_is_bounded_transport_resource":true,
+    "accelerator_memory_is_not_host_ram":true,
+    "unified_addressing_implies_uniform_physical_memory":false,
+    "double_count_capacity_across_domains":false,
+    "prefer_regeneration_when_workload_contract_proves_equivalence":true,
+    "prefer_stream_reduce_discard_when_contract_permits":true,
+    "peak_live_memory_equals_cumulative_allocation_traffic":false
+  }
+}
