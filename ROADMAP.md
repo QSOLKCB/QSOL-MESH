@@ -9,14 +9,14 @@
 - [x] Prepare the v0.1.0 constitutional release manifest, notes, and machine preflight.
 
 ## Phase 1 — deterministic dual-executor proof
-- [ ] MESH-owned synthetic deterministic bring-up workload.
-- [ ] CPU executor.
+- [x] MESH-owned synthetic deterministic bring-up workload.
+- [x] CPU executor.
 - [ ] Experimental NVIDIA accelerator executor.
 - [ ] Static CPU/GPU partition only.
 - [ ] Concurrent execution.
-- [ ] Deterministic reduction independent of completion order.
-- [ ] Canonical parity and receipt.
-- [ ] No adaptive scheduling.
+- [x] Deterministic reduction independent of completion order.
+- [x] Canonical parity and receipt.
+- [x] No adaptive scheduling.
 
 ## Phase 2 — GALAXY adapter
 - [ ] Adapter contract without copying GALAXY semantics into MESH.

@@ -18,7 +18,7 @@ jobs:
           python3 - <<'PY'
           import json
           from pathlib import Path
-          for path in sorted(Path("machine").glob("*.json")):
+          for path in sorted(Path("machine").rglob("*.json")):
               json.loads(path.read_text(encoding="utf-8"))
               print(path)
           PY
@@ -44,10 +44,11 @@ jobs:
       - run: cargo fmt --all --check
       - run: cargo test --workspace --locked
       - run: cargo clippy --workspace --all-targets --locked -- -D warnings
-      - name: CLI contract smoke
+      - name: CLI smoke
         run: |
-          cargo run -q -p qsol-mesh-cli --locked -- inspect --json | tee /tmp/mesh-inspect.json
-          grep -q '"status":"not-implemented"' /tmp/mesh-inspect.json
-          for command in inspect calibrate plan run verify receipt; do
-            cargo run -q -p qsol-mesh-cli --locked -- "$command" --json | grep -q "\"command\":\"$command\""
+          cargo run -q -p qsol-mesh-cli --locked -- inspect --json | grep -q '"available_parallelism":'
+          cargo run -q -p qsol-mesh-cli --locked -- run smoke --items 1000 --workers 4 --json | grep -q '"verified":true'
+          cargo run -q -p qsol-mesh-cli --locked -- verify smoke --items 1000 --workers 4 --json | grep -q '"checksum":"d3886842145b489c"'
+          for command in calibrate plan receipt; do
+            cargo run -q -p qsol-mesh-cli --locked -- "$command" --json | grep -q '"status":"not-implemented"'
           done
