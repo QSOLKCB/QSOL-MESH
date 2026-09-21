@@ -18,8 +18,8 @@ if manifest.get("release_version") != "0.1.0":
     raise SystemExit("release version mismatch")
 if manifest.get("expected_tag") != "v0.1.0":
     raise SystemExit("expected tag mismatch")
-if manifest.get("status") != "release-candidate":
-    raise SystemExit("release manifest must remain release-candidate before tagging")
+if manifest.get("release_class") != "immutable-constitutional-baseline":
+    raise SystemExit("release class mismatch")
 
 baseline = manifest.get("constitutional_baseline", {})
 if baseline.get("commit_sha") != BASELINE:

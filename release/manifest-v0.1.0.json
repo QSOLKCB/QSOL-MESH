@@ -3,7 +3,7 @@
   "release_version": "0.1.0",
   "expected_tag": "v0.1.0",
   "release_title": "QSOL-MESH v0.1.0 — Constitutional Architecture Freeze",
-  "status": "release-candidate",
+  "release_class": "immutable-constitutional-baseline",
   "constitutional_baseline": {
     "pull_request": 1,
     "commit_sha": "8a3d03e0fbded1849e40b78c734b9217bf634019",
