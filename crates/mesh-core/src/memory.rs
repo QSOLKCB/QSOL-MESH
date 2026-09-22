@@ -8,8 +8,7 @@
 pub const MEMORY_PLAN_SCHEMA: &str = "qsol.mesh.memory-plan.v1";
 pub const MEMORY_PLAN_RECEIPT_SCHEMA: &str = "qsol.mesh.memory-plan-receipt.v1";
 pub const MEMORY_BROKER_WORKLOAD_ID: &str = "mesh-memory-broker-v1";
-pub const MEMORY_PLAN_CLAIM_BOUNDARY: &str =
-    "planning-only-not-physical-allocation-evidence";
+pub const MEMORY_PLAN_CLAIM_BOUNDARY: &str = "planning-only-not-physical-allocation-evidence";
 pub const STREAM_REDUCE_DISCARD_STRATEGY: &str = "stream-reduce-discard-template-v1";
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -175,9 +174,7 @@ fn validate_unique_event_ids(events: &[MemoryEvent]) -> Result<(), &'static str>
     Ok(())
 }
 
-fn validate_unique_allocation_ids(
-    allocations: &[MemoryAllocation],
-) -> Result<(), &'static str> {
+fn validate_unique_allocation_ids(allocations: &[MemoryAllocation]) -> Result<(), &'static str> {
     for (index, allocation) in allocations.iter().enumerate() {
         if allocations[..index]
             .iter()
@@ -309,8 +306,8 @@ pub fn validate_memory_plan(plan: &MemoryPlan) -> Result<(), &'static str> {
             return Err("memory transfer exceeds allocation byte extent");
         }
 
-        let source_start =
-            event_position(&plan.events, source.live_from_event).ok_or("source lifetime missing")?;
+        let source_start = event_position(&plan.events, source.live_from_event)
+            .ok_or("source lifetime missing")?;
         let source_end = event_position(&plan.events, source.live_through_event)
             .ok_or("source lifetime missing")?;
         let destination_start = event_position(&plan.events, destination.live_from_event)
@@ -327,13 +324,10 @@ pub fn validate_memory_plan(plan: &MemoryPlan) -> Result<(), &'static str> {
         }
     }
 
-    if peak_live_bytes(plan, MemoryDomain::HostPinned)?
-        > plan.request.host_pinned_limit_bytes
-    {
+    if peak_live_bytes(plan, MemoryDomain::HostPinned)? > plan.request.host_pinned_limit_bytes {
         return Err("host pinned peak exceeds declared limit");
     }
-    if peak_live_bytes(plan, MemoryDomain::AcceleratorLocal)?
-        > plan.request.accelerator_limit_bytes
+    if peak_live_bytes(plan, MemoryDomain::AcceleratorLocal)? > plan.request.accelerator_limit_bytes
     {
         return Err("accelerator peak exceeds declared limit");
     }
@@ -352,9 +346,7 @@ pub fn validate_memory_plan(plan: &MemoryPlan) -> Result<(), &'static str> {
     Ok(())
 }
 
-pub fn build_streaming_memory_plan(
-    request: MemoryPlanRequest,
-) -> Result<MemoryPlan, &'static str> {
+pub fn build_streaming_memory_plan(request: MemoryPlanRequest) -> Result<MemoryPlan, &'static str> {
     if request.total_bytes == 0 {
         return Err("total bytes must be greater than zero");
     }
