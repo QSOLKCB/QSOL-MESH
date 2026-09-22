@@ -13,6 +13,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: python3 scripts/validate-contracts.py
+      - name: Validate CUDA build script syntax
+        run: bash -n scripts/build-cuda-helper.sh
       - name: Validate JSON syntax independently
         run: |
           python3 - <<'PY'
@@ -48,6 +50,12 @@ jobs:
         run: |
           cargo run -q -p qsol-mesh-cli --locked -- inspect --json | grep -q '"available_parallelism":'
           cargo run -q -p qsol-mesh-cli --locked -- run smoke --items 1000 --workers 4 --json > /tmp/mesh-smoke.json
+          if cargo run -q -p qsol-mesh-cli --locked -- run smoke-cuda --items 1000 --device 0 --helper /definitely/not/a/cuda-helper --json > /tmp/mesh-cuda-stdout 2> /tmp/mesh-cuda-stderr; then
+            echo "missing CUDA helper unexpectedly produced successful execution" >&2
+            exit 1
+          fi
+          test ! -s /tmp/mesh-cuda-stdout
+          grep -q 'CUDA helper launch failed' /tmp/mesh-cuda-stderr
           python3 - <<'PY'
           import json
           from pathlib import Path
