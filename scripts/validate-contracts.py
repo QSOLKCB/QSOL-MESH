@@ -248,6 +248,26 @@ for key in (
 ):
     if nvidia["execution_contract"].get(key) is not True:
         raise SystemExit(f"CUDA execution contract weakened: {key}")
+if nvidia["execution_contract"]["verified_worker_path"] != "target/mesh-cuda-smoke":
+    raise SystemExit("verified CUDA worker path drift")
+for key in (
+    "verified_worker_override_allowed",
+    "verified_worker_environment_override_allowed",
+    "arbitrary_helper_stdout_may_issue_verified_receipt",
+):
+    if nvidia["execution_contract"].get(key) is not False:
+        raise SystemExit(f"CUDA verified-worker override boundary weakened: {key}")
+if nvidia["build_contract"]["verified_output"] != "target/mesh-cuda-smoke":
+    raise SystemExit("CUDA verified build output drift")
+if nvidia["build_contract"]["alternate_verified_output_allowed"] is not False:
+    raise SystemExit("alternate CUDA verified build output became admissible")
+if nvidia["trust_boundary"] != {
+    "caller_selected_executables_are_execution_evidence": False,
+    "repository_canonical_build_output_is_the_only_verified_worker_path": True,
+    "local_filesystem_and_build_environment_are_outside_this_contract": True,
+    "canonical_path_is_not_cryptographic_binary_attestation": True,
+}:
+    raise SystemExit("CUDA worker trust boundary drift")
 if nvidia["verification_contract"] != {
     "kind": "mesh-smoke-v1-scalar-reference-equality",
     "rust_launcher_recomputes_scalar_reference": True,
@@ -265,6 +285,8 @@ if nvidia["ci_boundary"]["ci_may_claim_gpu_execution_without_cuda_capable_runner
 accelerator_source = (ROOT / "crates/mesh-core/src/accelerator.rs").read_text(encoding="utf-8")
 for token in (
     "qsol.mesh.cuda-smoke-worker.v1",
+    "CANONICAL_CUDA_HELPER_PATH",
+    "pub fn run_cuda_smoke(",
     "CUDA checksum does not match scalar smoke oracle",
     "smoke_reference",
     "cuda_runtime_version",
@@ -298,11 +320,26 @@ if "for (unsigned long long id = tid; id < items; id += stride)" in cuda_source:
     raise SystemExit("CUDA worker reintroduced wrapping logical-ID for-loop")
 if "pub fn validate_cuda_worker_observation" in accelerator_source:
     raise SystemExit("raw CUDA observation validation became a public run constructor")
+if "pub fn run_cuda_smoke_with_helper" in accelerator_source:
+    raise SystemExit("caller-selected helper execution became a public verified-run constructor")
 if "pub observation: CudaWorkerObservation" in accelerator_source or "pub reference: u64" in accelerator_source:
     raise SystemExit("CUDA run provenance fields became publicly constructible")
 
+cli_source = (ROOT / "crates/mesh-cli/src/main.rs").read_text(encoding="utf-8")
+if "QSOL_MESH_CUDA_HELPER" in cli_source:
+    raise SystemExit("environment helper override re-entered verified CUDA CLI")
+if "--helper PATH" in cli_source:
+    raise SystemExit("verified CUDA usage re-exposed caller-selected helper path")
+if "--helper overrides are not admitted for verified CUDA execution" not in cli_source:
+    raise SystemExit("verified CUDA CLI lost explicit helper-override rejection")
+
 build_script = (ROOT / "scripts/build-cuda-helper.sh").read_text(encoding="utf-8")
-for token in ("nvcc", "accelerators/cuda/mesh_smoke_cuda.cu", "target/mesh-cuda-smoke"):
+for token in (
+    "nvcc",
+    "accelerators/cuda/mesh_smoke_cuda.cu",
+    'OUT="$ROOT/target/mesh-cuda-smoke"',
+    "alternate output paths are not admitted for the verified worker",
+):
     if token not in build_script:
         raise SystemExit(f"CUDA build script lost required binding: {token}")
 
