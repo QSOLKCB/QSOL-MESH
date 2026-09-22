@@ -23,7 +23,9 @@
     "caller_working_directory_may_influence_verified_worker_resolution": false,
     "verified_worker_override_allowed": false,
     "verified_worker_environment_override_allowed": false,
-    "arbitrary_helper_stdout_may_issue_verified_receipt": false
+    "arbitrary_helper_stdout_may_issue_verified_receipt": false,
+    "range_execution_supported": true,
+    "range_start_plus_items_must_fit_u64": true
   },
   "observation_contract": {
     "device_ordinal_required": true,
@@ -38,7 +40,8 @@
     "rust_launcher_recomputes_scalar_reference": true,
     "worker_checksum_must_equal_scalar_reference": true,
     "verified_receipt_requires_oracle_pass": true,
-    "receipt_revalidates_resolved_worker_path": true
+    "receipt_revalidates_resolved_worker_path": true,
+    "range_worker_checksum_must_equal_scalar_range_reference": true
   },
   "build_contract": {
     "source": "accelerators/cuda/mesh_smoke_cuda.cu",
@@ -66,5 +69,6 @@
     "ci_may_claim_gpu_execution_without_cuda_capable_runner": false
   },
   "evidence_status": "runtime-only-until-cuda-capable-host-receipt-is-retained",
-  "claim_boundary": "Experimental single-device NVIDIA CUDA execution for mesh-smoke-v1. Verified physical-execution claims are admitted only through the application-anchored canonical worker resolved independently of the caller working directory, after successful worker execution, strict protocol validation, and independent scalar-oracle equality. Caller-selected executables and caller CWD cannot mint verified CUDA receipts. Helper-reported topology is not independently attested, and this is not performance evidence."
+  "claim_boundary": "Experimental single-device NVIDIA CUDA execution for mesh-smoke-v1. Verified physical-execution claims are admitted only through the application-anchored canonical worker resolved independently of the caller working directory, after successful worker execution, strict protocol validation, and independent scalar-oracle equality. Caller-selected executables and caller CWD cannot mint verified CUDA receipts. Helper-reported topology is not independently attested, and this is not performance evidence.",
+  "range_worker_protocol": "qsol.mesh.cuda-smoke-range-worker.v1"
 }
