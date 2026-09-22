@@ -765,10 +765,7 @@ mod tests {
             candidates,
             vec![observation(0, 100, 1_000), observation(1, 100, 700)],
             vec![observation(0, 1_000, 10_000), observation(1, 1_000, 7_000)],
-            100,
-            1_000,
-            1,
-            500,
+            CalibrationRequest::new(100, 1_000, 1, 500),
         )
         .unwrap();
         assert_eq!(plan.provisional_candidate_id, 1);
@@ -791,10 +788,7 @@ mod tests {
             candidates,
             vec![observation(0, 100, 1_000), observation(1, 100, 700)],
             vec![observation(0, 1_000, 10_000), observation(1, 1_000, 9_700)],
-            100,
-            1_000,
-            1,
-            500,
+            CalibrationRequest::new(100, 1_000, 1, 500),
         )
         .unwrap();
         assert_eq!(plan.provisional_candidate_id, 1);
@@ -840,10 +834,7 @@ mod tests {
                 candidates.clone(),
                 vec![observation(0, 100, 1_000), bad_checksum],
                 vec![observation(0, 1_000, 10_000)],
-                100,
-                1_000,
-                1,
-                500,
+                CalibrationRequest::new(100, 1_000, 1, 500),
             ),
             Err("candidate checksum does not match canonical result")
         );
@@ -859,10 +850,7 @@ mod tests {
                 candidates,
                 vec![observation(0, 100, 1_000), unverified],
                 vec![observation(0, 1_000, 10_000)],
-                100,
-                1_000,
-                1,
-                500,
+                CalibrationRequest::new(100, 1_000, 1, 500),
             ),
             Err("unverified cost observation is not admissible")
         );
@@ -882,10 +870,7 @@ mod tests {
                 candidates,
                 vec![observation(0, 100, 1_000), observation(1, 100, 960)],
                 vec![observation(0, 1_000, 10_000), extra],
-                100,
-                1_000,
-                1,
-                500,
+                CalibrationRequest::new(100, 1_000, 1, 500),
             ),
             Err("full-work confirmation contains unexpected candidates")
         );
@@ -906,10 +891,7 @@ mod tests {
                 candidates,
                 vec![observation(0, 100, 1_000), invalid],
                 vec![observation(0, 1_000, 10_000)],
-                100,
-                1_000,
-                1,
-                500,
+                CalibrationRequest::new(100, 1_000, 1, 500),
             ),
             Err("CPU smoke observations require zero separate setup and transfer cost")
         );
