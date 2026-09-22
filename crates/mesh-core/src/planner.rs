@@ -139,7 +139,10 @@ pub fn derive_candidates(
 }
 
 fn canonical_candidate(candidates: &[CandidatePlan]) -> Result<CandidatePlan, &'static str> {
-    let mut canonical = candidates.iter().copied().filter(|candidate| candidate.canonical);
+    let mut canonical = candidates
+        .iter()
+        .copied()
+        .filter(|candidate| candidate.canonical);
     let Some(first) = canonical.next() else {
         return Err("candidate set requires one canonical plan");
     };
@@ -149,10 +152,7 @@ fn canonical_candidate(candidates: &[CandidatePlan]) -> Result<CandidatePlan, &'
     Ok(first)
 }
 
-fn candidate_by_id(
-    candidates: &[CandidatePlan],
-    candidate_id: u32,
-) -> Option<CandidatePlan> {
+fn candidate_by_id(candidates: &[CandidatePlan], candidate_id: u32) -> Option<CandidatePlan> {
     candidates
         .iter()
         .copied()
@@ -262,8 +262,8 @@ fn best_observed_candidate(
 ) -> Result<u32, &'static str> {
     let mut best: Option<(u128, u32)> = None;
     for candidate in candidates {
-        let observation = observation_by_id(observations, candidate.id)
-            .ok_or("candidate observation missing")?;
+        let observation =
+            observation_by_id(observations, candidate.id).ok_or("candidate observation missing")?;
         let total = observation.total_ns()?;
         match best {
             None => best = Some((total, candidate.id)),
@@ -304,8 +304,8 @@ fn checksums_match_canonical(
     canonical_id: u32,
     observations: &[CostObservation],
 ) -> Result<(), &'static str> {
-    let canonical = observation_by_id(observations, canonical_id)
-        .ok_or("canonical observation missing")?;
+    let canonical =
+        observation_by_id(observations, canonical_id).ok_or("canonical observation missing")?;
     for observation in observations {
         if observation.checksum != canonical.checksum {
             return Err("candidate checksum does not match canonical result");
@@ -335,18 +335,17 @@ pub fn select_calibrated_plan(
     checksums_match_canonical(canonical.id, &calibration)?;
 
     let calibration_winner = best_observed_candidate(&candidates, &calibration)?;
-    let canonical_calibration = observation_by_id(&calibration, canonical.id)
-        .ok_or("canonical calibration missing")?;
-    let winner_calibration = observation_by_id(&calibration, calibration_winner)
-        .ok_or("calibration winner missing")?;
+    let canonical_calibration =
+        observation_by_id(&calibration, canonical.id).ok_or("canonical calibration missing")?;
+    let winner_calibration =
+        observation_by_id(&calibration, calibration_winner).ok_or("calibration winner missing")?;
 
     let provisional = if calibration_winner == canonical.id
         || !materially_faster(
             winner_calibration.total_ns()?,
             canonical_calibration.total_ns()?,
             near_tie_bps,
-        )?
-    {
+        )? {
         canonical.id
     } else {
         calibration_winner
@@ -484,10 +483,10 @@ pub fn calibrate_cpu_smoke_host(
 
     let canonical = canonical_candidate(&candidates)?;
     let calibration_winner = best_observed_candidate(&candidates, &calibration)?;
-    let canonical_observation = observation_by_id(&calibration, canonical.id)
-        .ok_or("canonical calibration missing")?;
-    let winner_observation = observation_by_id(&calibration, calibration_winner)
-        .ok_or("calibration winner missing")?;
+    let canonical_observation =
+        observation_by_id(&calibration, canonical.id).ok_or("canonical calibration missing")?;
+    let winner_observation =
+        observation_by_id(&calibration, calibration_winner).ok_or("calibration winner missing")?;
     let provisional = if calibration_winner == canonical.id
         || !materially_faster(
             winner_observation.total_ns()?,
@@ -500,11 +499,7 @@ pub fn calibrate_cpu_smoke_host(
         calibration_winner
     };
 
-    let mut confirmation = vec![measure_cpu_smoke(
-        canonical,
-        full_work_items,
-        repeats,
-    )?];
+    let mut confirmation = vec![measure_cpu_smoke(canonical, full_work_items, repeats)?];
     if provisional != canonical.id {
         let candidate =
             candidate_by_id(&candidates, provisional).ok_or("provisional candidate missing")?;
@@ -680,10 +675,7 @@ mod tests {
             },
             candidates,
             vec![observation(0, 100, 1_000), observation(1, 100, 700)],
-            vec![
-                observation(0, 1_000, 10_000),
-                observation(1, 1_000, 7_000),
-            ],
+            vec![observation(0, 1_000, 10_000), observation(1, 1_000, 7_000)],
             100,
             1_000,
             500,
@@ -708,10 +700,7 @@ mod tests {
             },
             candidates,
             vec![observation(0, 100, 1_000), observation(1, 100, 700)],
-            vec![
-                observation(0, 1_000, 10_000),
-                observation(1, 1_000, 9_700),
-            ],
+            vec![observation(0, 1_000, 10_000), observation(1, 1_000, 9_700)],
             100,
             1_000,
             500,
