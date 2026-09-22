@@ -37,6 +37,25 @@ The Rust launcher does not accept a requested GPU as evidence by itself. It requ
 
 See `NVIDIA-EXECUTOR.md` and `machine/nvidia-executor-contract.v1.json`.
 
+### Static CPU/CUDA partition
+
+The next Phase 1 rung uses one caller-fixed split of the same logical smoke domain:
+
+```sh
+mesh run smoke-static \
+  --items 100000 \
+  --cpu-items 40000 \
+  --cpu-workers 8 \
+  --device 0 \
+  --json
+```
+
+The geometry is explicit and immutable for the run: CPU executes `[0,cpu_items)`, CUDA executes `[cpu_items,items)`. Both ranges are verified independently against scalar range oracles, then reduced in partition order and checked against the full scalar oracle.
+
+This stage is deliberately **sequential**: CPU runs first, CUDA second, and receipts state `"concurrent":false` and `"adaptive":false`. Concurrent CPU/GPU execution remains the next roadmap rung.
+
+See `STATIC-SPLIT.md` and `machine/static-split-contract.v1.json`.
+
 ## Phase 2 GALAXY adapter boundary
 
 The first external adapter now has a machine-readable contract plus reusable range/reduction primitives. MESH can split a GALAXY logical population into complete half-open ranges, emit executor-local regeneration requests, accept compact range-bound `u64` partials in any completion order, validate exact coverage, reduce deterministically, and fail closed on oracle disagreement.

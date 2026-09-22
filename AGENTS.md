@@ -9,6 +9,7 @@ Normative machine-readable authority:
 - `machine/memory-plan-contract.v1.json`
 - `machine/calibrated-plan-contract.v1.json`
 - `machine/nvidia-executor-contract.v1.json`
+- `machine/static-split-contract.v1.json`
 - `machine/evidence-contract.v1.json`
 
 Automated agents MUST treat these versioned JSON contracts as normative. Human prose is explanatory and MUST NOT invent additional blocking requirements.

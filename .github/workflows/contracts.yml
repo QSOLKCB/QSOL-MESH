@@ -91,6 +91,18 @@ jobs:
           test ! -e /tmp/mesh-cuda-cwd-forged-executed
           test ! -s /tmp/mesh-cuda-cwd-stdout
           grep -q 'CUDA helper launch failed' /tmp/mesh-cuda-cwd-stderr
+          if cargo run -q -p qsol-mesh-cli --locked -- run smoke-static --items 1000 --cpu-items 400 --cpu-workers 2 --device 0 --json > /tmp/mesh-static-stdout 2> /tmp/mesh-static-stderr; then
+            echo "static CPU/CUDA split unexpectedly succeeded without canonical CUDA worker" >&2
+            exit 1
+          fi
+          test ! -s /tmp/mesh-static-stdout
+          grep -q 'CUDA range helper launch failed' /tmp/mesh-static-stderr
+          if cargo run -q -p qsol-mesh-cli --locked -- run smoke-static --items 1000 --cpu-workers 2 --device 0 --json > /tmp/mesh-static-missing-split-stdout 2> /tmp/mesh-static-missing-split-stderr; then
+            echo "static CPU/CUDA split unexpectedly accepted missing --cpu-items" >&2
+            exit 1
+          fi
+          test ! -s /tmp/mesh-static-missing-split-stdout
+          grep -q -- '--cpu-items is required for a fixed static split' /tmp/mesh-static-missing-split-stderr
           python3 - <<'PY'
           import json
           from pathlib import Path
