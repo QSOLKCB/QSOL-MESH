@@ -8,8 +8,8 @@
 
 use crate::{
     accelerator::{
-        run_cuda_smoke_range, validate_cuda_smoke_range_run, CudaSmokeRangeRun,
-        CUDA_EXECUTOR_ID, CUDA_RANGE_WORKER_PROTOCOL,
+        run_cuda_smoke_range, validate_cuda_smoke_range_run, CudaSmokeRangeRun, CUDA_EXECUTOR_ID,
+        CUDA_RANGE_WORKER_PROTOCOL,
     },
     available_workers, run_smoke_range, smoke_reference, smoke_reference_range, SmokeRangeRun,
     SMOKE_WORKLOAD_ID,
@@ -65,9 +65,7 @@ impl StaticSplitRun {
     }
 }
 
-pub fn validate_static_split_request(
-    request: StaticSplitRequest,
-) -> Result<(), &'static str> {
+pub fn validate_static_split_request(request: StaticSplitRequest) -> Result<(), &'static str> {
     if request.items < 2 {
         return Err("static CPU/CUDA split requires at least two items");
     }
@@ -150,23 +148,16 @@ fn validate_static_split_run(run: &StaticSplitRun) -> Result<(), &'static str> {
     Ok(())
 }
 
-pub fn run_static_smoke_partition(
-    request: StaticSplitRequest,
-) -> Result<StaticSplitRun, String> {
+pub fn run_static_smoke_partition(request: StaticSplitRequest) -> Result<StaticSplitRun, String> {
     validate_static_split_request(request).map_err(str::to_owned)?;
 
     let available_cpu_workers = available_workers();
 
     // Deliberately sequential. Concurrent execution is the next roadmap rung.
-    let cpu =
-        run_smoke_range(0, request.cpu_items, request.cpu_workers).map_err(str::to_owned)?;
+    let cpu = run_smoke_range(0, request.cpu_items, request.cpu_workers).map_err(str::to_owned)?;
 
     let cuda_items = request.items - request.cpu_items;
-    let cuda = run_cuda_smoke_range(
-        request.cpu_items,
-        cuda_items,
-        request.device_ordinal,
-    )?;
+    let cuda = run_cuda_smoke_range(request.cpu_items, cuda_items, request.device_ordinal)?;
 
     let (checksum, reference) =
         validate_partition_checksums(request, cpu.checksum, cuda.observation().checksum)
@@ -297,12 +288,9 @@ mod tests {
 
     #[test]
     fn known_static_partials_reduce_to_full_oracle() {
-        let (checksum, reference) = validate_partition_checksums(
-            request(),
-            0x6c9c_c32b_3b0b_5f89,
-            0x66eb_a516_d94f_e913,
-        )
-        .unwrap();
+        let (checksum, reference) =
+            validate_partition_checksums(request(), 0x6c9c_c32b_3b0b_5f89, 0x66eb_a516_d94f_e913)
+                .unwrap();
         assert_eq!(checksum, 0xd388_6842_145b_489c);
         assert_eq!(checksum, reference);
     }
@@ -310,11 +298,7 @@ mod tests {
     #[test]
     fn wrong_partition_partial_fails_closed() {
         assert_eq!(
-            validate_partition_checksums(
-                request(),
-                0x6c9c_c32b_3b0b_5f89,
-                0x66eb_a516_d94f_e912,
-            ),
+            validate_partition_checksums(request(), 0x6c9c_c32b_3b0b_5f89, 0x66eb_a516_d94f_e912,),
             Err("CUDA static-split checksum does not match assigned range oracle")
         );
     }
