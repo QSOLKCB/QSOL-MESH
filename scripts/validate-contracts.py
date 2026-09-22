@@ -12,6 +12,7 @@ EXPECTED = {
     "memory-plan-contract.v1.json":"qsol.mesh.memory-plan-contract.v1",
     "calibrated-plan-contract.v1.json":"qsol.mesh.calibrated-plan-contract.v1",
     "nvidia-executor-contract.v1.json":"qsol.mesh.nvidia-executor-contract.v1",
+    "nvidia-executor-timing-contract.v2.json":"qsol.mesh.nvidia-executor-timing-contract.v2",
     "static-split-contract.v1.json":"qsol.mesh.static-split-contract.v1",
     "concurrent-split-contract.v1.json":"qsol.mesh.concurrent-split-contract.v1",
     "evidence-contract.v1.json":"qsol.mesh.evidence-contract.v1",
@@ -173,8 +174,18 @@ if calibrated["measurement_contract"]["effective_cpu_workers_must_be_recorded"] 
     raise SystemExit("calibrated effective-worker evidence requirement drift")
 if calibrated["measurement_contract"]["cpu_smoke_nonzero_setup_or_transfer_is_admissible"] is not False:
     raise SystemExit("CPU smoke cost-field boundary drift")
-if calibrated["measurement_contract"]["accelerator_measurement_status"] != "pending-real-accelerator-executor":
-    raise SystemExit("accelerator measurement boundary drift")
+if (
+    calibrated["measurement_contract"]["accelerator_measurement_status"]
+    != "available-via-qsol.mesh.cuda-smoke-receipt.v2-not-yet-admitted"
+):
+    raise SystemExit("accelerator measurement availability boundary drift")
+if (
+    calibrated["measurement_contract"].get("accelerator_timing_receipt_schema")
+    != "qsol.mesh.cuda-smoke-receipt.v2"
+):
+    raise SystemExit("accelerator timing receipt binding drift")
+if calibrated["measurement_contract"].get("accelerator_measurements_admitted_by_planner") is not False:
+    raise SystemExit("accelerator timing evidence became planner authority before admission")
 if calibrated["oracle_contract"] != {
     "kind": "mesh-smoke-v1-scalar-reference-equality",
     "calibration_canonical_must_match_smoke_reference": True,
@@ -297,10 +308,115 @@ if nvidia["ci_boundary"]["default_github_runner_has_cuda_execution_evidence"] is
 if nvidia["ci_boundary"]["ci_may_claim_gpu_execution_without_cuda_capable_runner"] is not False:
     raise SystemExit("CI CUDA evidence boundary weakened")
 
+timing = loaded["nvidia-executor-timing-contract.v2.json"]
+if timing["contract_version"] != "2.0.0":
+    raise SystemExit("CUDA timing contract version drift")
+if timing["base_executor_contract"] != {
+    "path": "machine/nvidia-executor-contract.v1.json",
+    "schema": "qsol.mesh.nvidia-executor-contract.v1",
+    "executor_id": "qsol-mesh-cuda-smoke-v1",
+}:
+    raise SystemExit("CUDA timing base-executor binding drift")
+if timing["workload_identity"] != "mesh-smoke-v1":
+    raise SystemExit("CUDA timing workload identity drift")
+if timing["worker_protocol"] != "qsol.mesh.cuda-smoke-worker.v2":
+    raise SystemExit("CUDA timing worker protocol drift")
+if timing["receipt_schema"] != "qsol.mesh.cuda-smoke-receipt.v2":
+    raise SystemExit("CUDA timing receipt schema drift")
+if timing["activation"] != {
+    "cli_flag": "--timing",
+    "worker_flag": "--timing-v2",
+    "default_smoke_cuda_protocol_remains_v1": True,
+    "default_smoke_cuda_receipt_remains_v1": True,
+    "range_timing_supported": False,
+    "placement_behavior_may_change": False,
+    "calibrator_may_consume_v2_timings": False,
+}:
+    raise SystemExit("CUDA timing activation/compatibility boundary drift")
+
+expected_timing_fields = {
+    "launcher_total_ns": {
+        "producer": "rust-launcher",
+        "clock": "rust-std-instant-monotonic",
+        "scope": "canonical-helper-command-output-from-pre-spawn-through-captured-exit",
+    },
+    "worker_total_ns": {
+        "producer": "cuda-worker",
+        "clock": "cxx-std-steady-clock-monotonic",
+        "scope": "pre-cudaSetDevice-through-cudaFree-and-timing-event-destruction",
+    },
+    "setup_host_ns": {
+        "producer": "cuda-worker",
+        "clock": "cxx-std-steady-clock-monotonic",
+        "scope": "cudaSetDevice-through-topology-version-query-launch-geometry-allocation-zeroing-and-timing-event-creation",
+    },
+    "kernel_device_ns": {
+        "producer": "cuda-worker",
+        "clock": "cuda-event-default-stream",
+        "scope": "cuda-event-before-kernel-through-event-after-kernel-with-device-synchronization-before-readout",
+    },
+    "transfer_host_ns": {
+        "producer": "cuda-worker",
+        "clock": "cxx-std-steady-clock-monotonic",
+        "scope": "synchronous-eight-byte-cudaMemcpy-device-to-pageable-host-after-device-synchronization",
+    },
+    "teardown_host_ns": {
+        "producer": "cuda-worker",
+        "clock": "cxx-std-steady-clock-monotonic",
+        "scope": "cudaFree-through-timing-event-destruction",
+    },
+    "verification_ns": {
+        "producer": "rust-launcher",
+        "clock": "rust-std-instant-monotonic",
+        "scope": "independent-smoke_reference-computation-only",
+    },
+}
+if timing["timing_fields"] != expected_timing_fields:
+    raise SystemExit("CUDA timing field scope/clock contract drift")
+if timing["consistency_contract"] != {
+    "worker_protocol_timing_values_are_unsigned_decimal_u64": True,
+    "missing_or_duplicate_or_misordered_fields_must_fail_closed": True,
+    "negative_or_overflowed_timing_values_must_fail_closed": True,
+    "worker_total_ns_must_be_nonzero": True,
+    "host_component_sum_is_checked_u64": True,
+    "setup_plus_transfer_plus_teardown_must_not_exceed_worker_total": True,
+    "launcher_total_must_not_be_less_than_worker_total": True,
+    "kernel_device_ns_is_not_added_to_host_component_sum": True,
+    "cross_clock_additive_total_may_be_claimed": False,
+}:
+    raise SystemExit("CUDA timing consistency contract drift")
+if timing["verification_contract"] != {
+    "kind": "mesh-smoke-v1-scalar-reference-equality",
+    "worker_checksum_must_equal_independent_rust_scalar_reference": True,
+    "timing_validation_precedes_verified_receipt": True,
+    "receipt_serialization_revalidates_timing_and_oracle": True,
+    "canonical_worker_path_must_be_revalidated": True,
+}:
+    raise SystemExit("CUDA timing verification contract drift")
+if timing["evidence_boundary"] != {
+    "single_sample_is_performance_evidence": False,
+    "timing_receipt_is_calibration_selection_evidence": False,
+    "helper_reported_topology_is_independently_attested": False,
+    "kernel_level_cpu_gpu_overlap_is_measured": False,
+    "retained_cuda_host_v1_evidence_is_reinterpreted_as_v2": False,
+}:
+    raise SystemExit("CUDA timing evidence boundary drift")
+if timing["ci_boundary"] != {
+    "default_github_runner_has_cuda_timing_evidence": False,
+    "ci_may_validate_v2_protocol_parser_and_contract": True,
+    "ci_may_claim_cuda_timing_execution_without_cuda_capable_runner": False,
+}:
+    raise SystemExit("CUDA timing CI boundary drift")
+
 accelerator_source = (ROOT / "crates/mesh-core/src/accelerator.rs").read_text(encoding="utf-8")
 for token in (
     "qsol.mesh.cuda-smoke-worker.v1",
+    "qsol.mesh.cuda-smoke-worker.v2",
     "qsol.mesh.cuda-smoke-range-worker.v1",
+    "run_cuda_smoke_timed",
+    "cuda_smoke_timing_receipt_json",
+    "CUDA timing host components exceed worker total",
+    "cross_clock_additive_total",
     "run_cuda_smoke_range",
     "CUDA range checksum does not match scalar smoke oracle",
     "CANONICAL_CUDA_HELPER_FILENAME",
@@ -336,8 +452,13 @@ for token in (
     "cudaDeviceSynchronize",
     "cudaMemcpy",
     "qsol.mesh.cuda-smoke-worker.v1",
+    "qsol.mesh.cuda-smoke-worker.v2",
     "qsol.mesh.cuda-smoke-range-worker.v1",
     'std::strcmp(argv[index], "--start")',
+    'std::strcmp(argv[index], "--timing-v2")',
+    "std::chrono::steady_clock",
+    "cudaEventRecord",
+    "cudaEventElapsedTime",
     "const unsigned long long id = start + offset",
 ):
     if token not in cuda_source:
@@ -360,6 +481,8 @@ if "--helper PATH" in cli_source:
     raise SystemExit("verified CUDA usage re-exposed caller-selected helper path")
 if "--helper overrides are not admitted for verified CUDA execution" not in cli_source:
     raise SystemExit("verified CUDA CLI lost explicit helper-override rejection")
+if "--timing" not in cli_source or "run_cuda_smoke_timed" not in cli_source:
+    raise SystemExit("CUDA timing CLI surface missing")
 
 build_script = (ROOT / "scripts/build-cuda-helper.sh").read_text(encoding="utf-8")
 for token in (
@@ -506,6 +629,7 @@ for contract_name in (
     "machine/memory-plan-contract.v1.json",
     "machine/calibrated-plan-contract.v1.json",
     "machine/nvidia-executor-contract.v1.json",
+    "machine/nvidia-executor-timing-contract.v2.json",
     "machine/static-split-contract.v1.json",
     "machine/concurrent-split-contract.v1.json",
 ):
