@@ -324,7 +324,7 @@ for token in (
 cuda_source = (ROOT / "accelerators/cuda/mesh_smoke_cuda.cu").read_text(encoding="utf-8")
 for token in (
     "__global__ void smoke_kernel",
-    "const unsigned long long remaining = items - id",
+    "const unsigned long long remaining = items - offset",
     "if (remaining <= stride)",
     "cudaSetDevice",
     "cudaGetDeviceProperties",
