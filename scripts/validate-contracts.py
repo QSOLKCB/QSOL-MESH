@@ -172,6 +172,13 @@ if calibrated["measurement_contract"]["cpu_smoke_nonzero_setup_or_transfer_is_ad
     raise SystemExit("CPU smoke cost-field boundary drift")
 if calibrated["measurement_contract"]["accelerator_measurement_status"] != "pending-real-accelerator-executor":
     raise SystemExit("accelerator measurement boundary drift")
+if calibrated["oracle_contract"] != {
+    "kind": "mesh-smoke-v1-scalar-reference-equality",
+    "calibration_canonical_must_match_smoke_reference": True,
+    "confirmation_canonical_must_match_smoke_reference": True,
+    "peer_checksum_equality_cannot_replace_workload_oracle": True,
+}:
+    raise SystemExit("calibrated workload oracle contract drift")
 if calibrated["confirmation_contract"]["full_work_confirmation_required_before_noncanonical_promotion"] is not True:
     raise SystemExit("full-work confirmation requirement drift")
 if calibrated["confirmation_contract"]["unexpected_confirmation_observations_allowed"] is not False:
@@ -204,6 +211,8 @@ for token in (
     "canonical-restored-after-full-work-near-tie",
     "accelerator candidate lacks observed topology",
     "candidate checksum does not match canonical result",
+    "canonical checksum does not match smoke oracle",
+    "smoke_reference",
     "full-work confirmation contains unexpected candidates",
     "CPU smoke observations require zero separate setup and transfer cost",
     "selected_effective_cpu_workers",
