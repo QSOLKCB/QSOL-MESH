@@ -492,8 +492,7 @@ pub fn calibrate_cpu_smoke_host(
             winner_observation.total_ns()?,
             canonical_observation.total_ns()?,
             near_tie_bps,
-        )?
-    {
+        )? {
         canonical.id
     } else {
         calibration_winner
