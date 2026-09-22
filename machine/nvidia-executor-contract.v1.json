@@ -68,7 +68,12 @@
     "ci_may_validate_rust_protocol_and_fail_closed_behavior": true,
     "ci_may_claim_gpu_execution_without_cuda_capable_runner": false
   },
-  "evidence_status": "runtime-only-until-cuda-capable-host-receipt-is-retained",
+  "evidence_status": "retained-cuda-host-receipt-bound-to-58301da12f241ae823f70174a3028319abe9a36f",
   "claim_boundary": "Experimental single-device NVIDIA CUDA execution for mesh-smoke-v1. Verified physical-execution claims are admitted only through the application-anchored canonical worker resolved independently of the caller working directory, after successful worker execution, strict protocol validation, and independent scalar-oracle equality. Caller-selected executables and caller CWD cannot mint verified CUDA receipts. Helper-reported topology is not independently attested, and this is not performance evidence.",
-  "range_worker_protocol": "qsol.mesh.cuda-smoke-range-worker.v1"
+  "range_worker_protocol": "qsol.mesh.cuda-smoke-range-worker.v1",
+  "retained_evidence": {
+    "manifest": "evidence/phase1-cuda-host-2026-09-23/manifest.json",
+    "source_commit": "58301da12f241ae823f70174a3028319abe9a36f",
+    "receipt": "evidence/phase1-cuda-host-2026-09-23/gpu-verify-100000.json"
+  }
 }
