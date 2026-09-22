@@ -9,6 +9,7 @@ EXPECTED = {
     "agent-review-policy.v1.json":"qsol.mesh.agent-review-policy.v1",
     "workload-contract.v1.json":"qsol.mesh.workload-contract.v1",
     "memory-model.v1.json":"qsol.mesh.memory-model.v1",
+    "memory-plan-contract.v1.json":"qsol.mesh.memory-plan-contract.v1",
     "evidence-contract.v1.json":"qsol.mesh.evidence-contract.v1",
 }
 loaded = {}
@@ -113,5 +114,46 @@ for token in (
 for forbidden in ("fn address_word(", "fn build_particles(", "physics::", "sin_cos_q30("):
     if forbidden in galaxy_source:
         raise SystemExit(f"GALAXY semantics copied into MESH adapter: {forbidden}")
+
+memory_plan = loaded["memory-plan-contract.v1.json"]
+if memory_plan["plan_identity"] != "mesh-memory-broker-v1":
+    raise SystemExit("memory plan identity drift")
+if memory_plan["strategy_contract"] != {
+    "kind": "stream-reduce-discard-template-v1",
+    "template_repeated_per_chunk": True,
+    "per_chunk_graph_materialization": False,
+    "reduce_event_required": True,
+    "discard_event_required": True,
+    "bounded_staging_reuse": True,
+    "accelerator_pool_reuse_planned": True,
+}:
+    raise SystemExit("memory plan strategy contract drift")
+if memory_plan["materialization_boundary"] != {
+    "planning_layer_may_claim_physical_materialization": False,
+    "host_pinned_materialization_status": "pending-backend-owned-pinned-allocation",
+    "accelerator_pool_materialization_status": "pending-real-accelerator-executor",
+    "requested_or_planned_memory_is_execution_evidence": False,
+}:
+    raise SystemExit("memory materialization boundary drift")
+if memory_plan["receipt_contract"]["schema"] != "qsol.mesh.memory-plan-receipt.v1":
+    raise SystemExit("memory plan receipt schema drift")
+
+memory_source = (ROOT / "crates/mesh-core/src/memory.rs").read_text(encoding="utf-8")
+for token in (
+    "stream-reduce-discard-template-v1",
+    "planning-only-not-physical-allocation-evidence",
+    "physically_materialized",
+    "host pinned peak exceeds declared limit",
+    "accelerator peak exceeds declared limit",
+):
+    if token not in memory_source:
+        raise SystemExit(f"memory broker source lost required boundary: {token}")
+for forbidden in ("cudaMalloc", "cuMemAlloc", "mlock(", "VirtualLock("):
+    if forbidden in memory_source:
+        raise SystemExit(f"planning-only memory broker acquired physical allocation primitive: {forbidden}")
+
+agents = (ROOT / "AGENTS.md").read_text(encoding="utf-8")
+if "machine/memory-plan-contract.v1.json" not in agents:
+    raise SystemExit("AGENTS.md does not expose the memory plan contract")
 
 print("QSOL-MESH machine contracts valid")
