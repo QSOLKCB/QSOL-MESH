@@ -10,6 +10,8 @@ MANIFEST = EVIDENCE / "manifest.json"
 MANIFEST_REPO_PATH = "evidence/phase1-cuda-host-2026-09-23/manifest.json"
 SOURCE_COMMIT = "58301da12f241ae823f70174a3028319abe9a36f"
 EXPECTED_CHECKSUM = "9d390352e9b7d24c"
+EXPECTED_CUDA_HELPER_PATH = "/home/trent/qsol-mesh-dev/QSOL-MESH/target/mesh-cuda-smoke"
+EXPECTED_CUDA_RECEIPT_REDUCTION = "device-strided-local-sums-plus-atomicAdd-u64"
 MASK_U64 = (1 << 64) - 1
 SMOKE_SEED = 0x4D4553485F534D4B
 
@@ -249,6 +251,23 @@ gpu = load("gpu-verify-100000.json")
 static = load("smoke-static-verify-100000-40000.json")
 concurrent = load("smoke-concurrent-verify-100000-40000.json")
 
+evidence_contract = json.loads(
+    (ROOT / "machine" / "evidence-contract.v1.json").read_text(encoding="utf-8")
+)
+required_sections = evidence_contract.get("receipt_required_sections")
+if not isinstance(required_sections, list) or not required_sections:
+    raise SystemExit("evidence contract required-section inventory is invalid")
+for label, receipt in (
+    ("CUDA", gpu),
+    ("static split", static),
+    ("concurrent split", concurrent),
+):
+    missing_sections = [section for section in required_sections if section not in receipt]
+    if missing_sections:
+        raise SystemExit(
+            f"{label}: retained receipt missing required sections: {missing_sections}"
+        )
+
 require_verified_full_oracle(gpu, "CUDA")
 require_verified_full_oracle(static, "static split")
 require_verified_full_oracle(concurrent, "concurrent split")
@@ -272,6 +291,9 @@ if gpu_request.get("command") != "verify":
     raise SystemExit("retained CUDA receipt is not a verify receipt")
 if gpu_request.get("items") != 100000:
     raise SystemExit("retained CUDA workload size drift")
+if gpu_request.get("helper_path") != EXPECTED_CUDA_HELPER_PATH:
+    raise SystemExit("retained CUDA helper path is not the retained canonical worker path")
+
 requested_device = gpu_request.get("device_ordinal")
 if (
     not isinstance(requested_device, int)
@@ -283,6 +305,51 @@ if (
     raise SystemExit("retained CUDA requested/observed/effective device mismatch")
 if gpu_topology.get("backend") != "nvidia-cuda" or gpu_execution.get("backend") != "nvidia-cuda":
     raise SystemExit("retained CUDA backend drift")
+
+compute_major = gpu_topology.get("compute_major")
+compute_minor = gpu_topology.get("compute_minor")
+runtime_version = gpu_topology.get("cuda_runtime_version")
+driver_version = gpu_topology.get("cuda_driver_version")
+if (
+    not isinstance(compute_major, int)
+    or isinstance(compute_major, bool)
+    or compute_major <= 0
+    or not isinstance(compute_minor, int)
+    or isinstance(compute_minor, bool)
+    or compute_minor < 0
+    or not isinstance(runtime_version, int)
+    or isinstance(runtime_version, bool)
+    or runtime_version <= 0
+    or not isinstance(driver_version, int)
+    or isinstance(driver_version, bool)
+    or driver_version <= 0
+    or gpu_topology.get("evidence_source")
+    != nvidia_contract["observation_contract"]["evidence_source"]
+):
+    raise SystemExit("retained CUDA required topology evidence drift")
+
+if gpu_execution.get("reduction") != EXPECTED_CUDA_RECEIPT_REDUCTION:
+    raise SystemExit("retained CUDA reduction mode drift")
+if (
+    nvidia_contract["execution_contract"]["device_side_checksum_accumulation"]
+    != "wrapping-u64-local-sums-plus-atomicAdd"
+    or nvidia_contract["execution_contract"]["host_scalar_fallback_inside_cuda_worker_allowed"]
+    is not False
+):
+    raise SystemExit("NVIDIA executor checksum-accumulation contract drift")
+
+gpu_memory = gpu.get("memory_plan", {})
+if gpu_memory != {
+    "accelerator_checksum_buffer_bytes": nvidia_contract["memory_contract"][
+        "accelerator_checksum_buffer_bytes"
+    ],
+    "domains": ["accelerator-local", "host-pageable"],
+    "per_item_materialization": nvidia_contract["memory_contract"][
+        "per_item_device_materialization"
+    ],
+}:
+    raise SystemExit("retained CUDA memory evidence drift")
+
 if gpu.get("verification", {}).get("kind") != "scalar-reference-equality":
     raise SystemExit("retained CUDA verification kind drift")
 if gpu.get("source_identity") != {
@@ -310,6 +377,21 @@ if static.get("source_identity") != {
     "split_schema": "qsol.mesh.static-split.v1",
 }:
     raise SystemExit("retained static source identity drift")
+if static["observed_topology"].get("cuda_helper_path") != EXPECTED_CUDA_HELPER_PATH:
+    raise SystemExit("retained static CUDA helper path drift")
+static_memory = static.get("memory_plan", {})
+if (
+    static_memory.get("domains")
+    != [static_contract["memory_contract"]["cpu_domain"], static_contract["memory_contract"]["cuda_domain"]]
+    or static_memory.get("per_item_materialization")
+    != static_contract["memory_contract"]["per_item_materialization"]
+    or static_memory.get("accelerator_checksum_buffer_bytes")
+    != static_contract["memory_contract"]["accelerator_checksum_buffer_bytes"]
+    or static_memory.get("device_to_host_result_bytes")
+    != static_contract["memory_contract"]["device_to_host_result_bytes"]
+    or static_memory.get("cpu_temporary_state") != "O(cpu-workers)"
+):
+    raise SystemExit("retained static memory evidence drift")
 static_boundary = rust_string_constant(
     "crates/mesh-core/src/static_split.rs",
     "STATIC_SPLIT_CLAIM_BOUNDARY",
@@ -332,6 +414,21 @@ if concurrent.get("source_identity") != {
     "split_schema": "qsol.mesh.concurrent-split.v1",
 }:
     raise SystemExit("retained concurrent source identity drift")
+if concurrent["observed_topology"].get("cuda_helper_path") != EXPECTED_CUDA_HELPER_PATH:
+    raise SystemExit("retained concurrent CUDA helper path drift")
+concurrent_memory = concurrent.get("memory_plan", {})
+if (
+    concurrent_memory.get("domains")
+    != [static_contract["memory_contract"]["cpu_domain"], static_contract["memory_contract"]["cuda_domain"]]
+    or concurrent_memory.get("per_item_materialization")
+    != static_contract["memory_contract"]["per_item_materialization"]
+    or concurrent_memory.get("accelerator_checksum_buffer_bytes")
+    != static_contract["memory_contract"]["accelerator_checksum_buffer_bytes"]
+    or concurrent_memory.get("device_to_host_result_bytes")
+    != static_contract["memory_contract"]["device_to_host_result_bytes"]
+    or concurrent_memory.get("cpu_temporary_state") != "O(cpu-workers)"
+):
+    raise SystemExit("retained concurrent memory evidence drift")
 concurrent_boundary = rust_string_constant(
     "crates/mesh-core/src/concurrent_split.rs",
     "CONCURRENT_SPLIT_CLAIM_BOUNDARY",
