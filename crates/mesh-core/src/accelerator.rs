@@ -173,11 +173,7 @@ fn run_cuda_smoke_with_helper(
 }
 
 pub fn run_cuda_smoke(items: u64, device_ordinal: u32) -> Result<CudaSmokeRun, String> {
-    run_cuda_smoke_with_helper(
-        Path::new(CANONICAL_CUDA_HELPER_PATH),
-        items,
-        device_ordinal,
-    )
+    run_cuda_smoke_with_helper(Path::new(CANONICAL_CUDA_HELPER_PATH), items, device_ordinal)
 }
 
 fn json_escape(value: &str) -> String {
@@ -199,10 +195,7 @@ fn json_escape(value: &str) -> String {
     escaped
 }
 
-pub fn cuda_smoke_receipt_json(
-    command: &str,
-    run: CudaSmokeRun,
-) -> Result<String, &'static str> {
+pub fn cuda_smoke_receipt_json(command: &str, run: CudaSmokeRun) -> Result<String, &'static str> {
     if command != "run" && command != "verify" {
         return Err("CUDA smoke receipt command must be run or verify");
     }
