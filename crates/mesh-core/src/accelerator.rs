@@ -354,9 +354,18 @@ mod tests {
     }
 
     #[test]
-    fn missing_canonical_helper_fails_closed() {
-        let result = run_cuda_smoke(1_000, 0);
+    fn missing_helper_fails_closed_independently_of_canonical_worker_state() {
+        let root = std::env::temp_dir().join(format!(
+            "qsol-mesh-missing-cuda-helper-{}",
+            std::process::id()
+        ));
+        let helper = root.join(CANONICAL_CUDA_HELPER_FILENAME);
+        let _ = std::fs::remove_file(&helper);
+        let _ = std::fs::remove_dir_all(&root);
+
+        let result = run_cuda_smoke_with_helper(&helper, 1_000, 0);
         assert!(result.is_err());
+        assert!(!helper.exists());
     }
 
     #[test]
