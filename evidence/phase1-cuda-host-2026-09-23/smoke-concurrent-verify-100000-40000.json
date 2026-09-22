@@ -1,0 +1,84 @@
+{
+  "calibration": {
+    "performed": false
+  },
+  "claim_boundary": "runtime-bring-up-concurrent-dispatch-fixed-split-not-kernel-overlap-measurement-not-performance-evidence",
+  "effective_execution": {
+    "adaptive": false,
+    "concurrent_dispatch": true,
+    "cpu": {
+      "checksum": "5adf225493d7a5bf",
+      "effective_workers": 8,
+      "range_end": 40000,
+      "range_start": 0,
+      "requested_workers": 8
+    },
+    "cuda": {
+      "blocks": 144,
+      "checksum": "4259e0fe55e02c8d",
+      "device_ordinal": 0,
+      "range_end": 100000,
+      "range_start": 40000,
+      "threads_per_block": 256
+    },
+    "dispatch_contract": {
+      "cpu_joined_after_cuda_call_return": true,
+      "cpu_task_spawned_before_cuda_call": true,
+      "kernel_overlap_measured": false
+    },
+    "kind": "concurrent-cpu-cuda-partition-v1",
+    "reduction": "partition-order-wrapping-u64",
+    "reduction_order": [
+      "cpu",
+      "nvidia-cuda"
+    ]
+  },
+  "memory_plan": {
+    "accelerator_checksum_buffer_bytes": 8,
+    "cpu_temporary_state": "O(cpu-workers)",
+    "device_to_host_result_bytes": 8,
+    "domains": [
+      "host-pageable",
+      "accelerator-local"
+    ],
+    "per_item_materialization": false
+  },
+  "observed_topology": {
+    "accelerator_observed": true,
+    "available_cpu_workers": 32,
+    "cuda_compute_major": 12,
+    "cuda_compute_minor": 0,
+    "cuda_device_ordinal": 0,
+    "cuda_driver_version": 13020,
+    "cuda_evidence_source": "cuda-helper-process",
+    "cuda_helper_path": "/home/trent/qsol-mesh-dev/QSOL-MESH/target/mesh-cuda-smoke",
+    "cuda_runtime_version": 13020
+  },
+  "requested_configuration": {
+    "command": "verify",
+    "cpu_items": 40000,
+    "cpu_workers": 8,
+    "device_ordinal": 0,
+    "items": 100000
+  },
+  "schema": "qsol.mesh.concurrent-split-receipt.v1",
+  "source_identity": {
+    "cuda_executor_id": "qsol-mesh-cuda-smoke-v1",
+    "cuda_worker_protocol": "qsol.mesh.cuda-smoke-range-worker.v1",
+    "runtime": "qsol-mesh-cli",
+    "split_id": "mesh-smoke-concurrent-cpu-cuda-v1",
+    "split_schema": "qsol.mesh.concurrent-split.v1"
+  },
+  "verification": {
+    "checksum": "9d390352e9b7d24c",
+    "cpu_reference": "5adf225493d7a5bf",
+    "cuda_reference": "4259e0fe55e02c8d",
+    "kind": "partition-range-oracles-plus-full-scalar-reference",
+    "reference": "9d390352e9b7d24c",
+    "verified": true
+  },
+  "workload_identity": {
+    "workload_contract_version": "1.0.0",
+    "workload_id": "mesh-smoke-v1"
+  }
+}
