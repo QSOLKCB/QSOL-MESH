@@ -31,8 +31,14 @@ __global__ void smoke_kernel(
         static_cast<unsigned long long>(gridDim.x) * blockDim.x;
 
     unsigned long long local = 0;
-    for (unsigned long long id = tid; id < items; id += stride) {
+    unsigned long long id = tid;
+    while (id < items) {
         local += mix64(id ^ kSmokeSeed);
+        const unsigned long long remaining = items - id;
+        if (remaining <= stride) {
+            break;
+        }
+        id += stride;
     }
     atomicAdd(checksum, local);
 }
