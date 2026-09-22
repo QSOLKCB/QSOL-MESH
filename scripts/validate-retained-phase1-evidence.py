@@ -225,6 +225,8 @@ for entry in entries:
     if not isinstance(entry, dict):
         raise SystemExit("retained evidence manifest entry is invalid")
     path_name = entry.get("path")
+    if not isinstance(path_name, str) or not path_name:
+        raise SystemExit("retained evidence manifest path is invalid")
     if path_name in manifest_by_path:
         raise SystemExit(f"duplicate retained evidence manifest path: {path_name}")
     expected_entry = EXPECTED_FILES.get(path_name)
@@ -260,9 +262,6 @@ static_contract = json.loads(
 concurrent_contract = json.loads(
     (ROOT / "machine" / "concurrent-split-contract.v1.json").read_text(encoding="utf-8")
 )
-
-if gpu.get("schema") != nvidia_contract["retained_evidence"] and False:
-    raise SystemExit("unreachable")
 
 if gpu.get("schema") != EXPECTED_FILES["gpu-verify-100000.json"]["schema"]:
     raise SystemExit("retained CUDA receipt schema drift")
@@ -382,16 +381,19 @@ contract_expectations = {
         "status": "retained-cuda-host-receipt-bound-to-58301da12f241ae823f70174a3028319abe9a36f",
         "receipt": "evidence/phase1-cuda-host-2026-09-23/gpu-verify-100000.json",
         "manifest_name": "gpu-verify-100000.json",
+        "schema": "qsol.mesh.cuda-smoke-receipt.v1",
     },
     "static-split-contract.v1.json": {
         "status": "retained-cuda-host-static-split-receipt-bound-to-58301da12f241ae823f70174a3028319abe9a36f",
         "receipt": "evidence/phase1-cuda-host-2026-09-23/smoke-static-verify-100000-40000.json",
         "manifest_name": "smoke-static-verify-100000-40000.json",
+        "schema": "qsol.mesh.static-split-receipt.v1",
     },
     "concurrent-split-contract.v1.json": {
         "status": "retained-cuda-host-concurrent-receipt-bound-to-58301da12f241ae823f70174a3028319abe9a36f",
         "receipt": "evidence/phase1-cuda-host-2026-09-23/smoke-concurrent-verify-100000-40000.json",
         "manifest_name": "smoke-concurrent-verify-100000-40000.json",
+        "schema": "qsol.mesh.concurrent-split-receipt.v1",
     },
 }
 for name, expected in contract_expectations.items():
@@ -409,7 +411,10 @@ for name, expected in contract_expectations.items():
     receipt_path = ROOT / expected["receipt"]
     if not receipt_path.is_file():
         raise SystemExit(f"{name}: retained receipt path does not exist")
-    if expected["manifest_name"] not in manifest_by_path:
+    manifest_entry = manifest_by_path.get(expected["manifest_name"])
+    if manifest_entry is None:
         raise SystemExit(f"{name}: retained receipt is absent from manifest inventory")
+    if manifest_entry.get("schema") != expected["schema"]:
+        raise SystemExit(f"{name}: retained receipt manifest schema drift")
 
 print("retained Phase 1 CUDA-host evidence: valid")
