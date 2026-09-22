@@ -60,6 +60,11 @@
     "ci_may_validate_partition_geometry_and_fail_closed_behavior": true,
     "ci_may_claim_static_heterogeneous_execution_without_cuda_capable_runner": false
   },
-  "evidence_status": "implementation-complete-retained-cuda-host-static-split-receipt-pending",
-  "claim_boundary": "Static CPU/CUDA partition bring-up only. The caller fixes one contiguous CPU prefix and one contiguous CUDA suffix. Execution is sequential, non-adaptive, exact, fail-closed, and not performance evidence."
+  "evidence_status": "retained-cuda-host-static-split-receipt-bound-to-58301da12f241ae823f70174a3028319abe9a36f",
+  "claim_boundary": "Static CPU/CUDA partition bring-up only. The caller fixes one contiguous CPU prefix and one contiguous CUDA suffix. Execution is sequential, non-adaptive, exact, fail-closed, and not performance evidence.",
+  "retained_evidence": {
+    "manifest": "evidence/phase1-cuda-host-2026-09-23/manifest.json",
+    "source_commit": "58301da12f241ae823f70174a3028319abe9a36f",
+    "receipt": "evidence/phase1-cuda-host-2026-09-23/smoke-static-verify-100000-40000.json"
+  }
 }
