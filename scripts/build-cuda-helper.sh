@@ -3,7 +3,12 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 NVCC_BIN="${NVCC:-nvcc}"
-OUT="${1:-$ROOT/target/mesh-cuda-smoke}"
+OUT="$ROOT/target/mesh-cuda-smoke"
+
+if (( $# != 0 )); then
+  echo "build-cuda-helper: alternate output paths are not admitted for the verified worker" >&2
+  exit 2
+fi
 
 if ! command -v "$NVCC_BIN" >/dev/null 2>&1; then
   echo "build-cuda-helper: nvcc not found: $NVCC_BIN" >&2
@@ -11,4 +16,9 @@ if ! command -v "$NVCC_BIN" >/dev/null 2>&1; then
 fi
 
 mkdir -p "$(dirname "$OUT")"
-exec "$NVCC_BIN"   -std=c++17   -O3   --expt-relaxed-constexpr   "$ROOT/accelerators/cuda/mesh_smoke_cuda.cu"   -o "$OUT"
+exec "$NVCC_BIN" \
+  -std=c++17 \
+  -O3 \
+  --expt-relaxed-constexpr \
+  "$ROOT/accelerators/cuda/mesh_smoke_cuda.cu" \
+  -o "$OUT"
