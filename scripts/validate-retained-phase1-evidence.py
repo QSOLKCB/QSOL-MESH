@@ -288,7 +288,7 @@ def retained_cuda_identity():
     compute_capability = environment.get("compute_capability")
     if not isinstance(compute_capability, str):
         raise SystemExit("retained manifest compute capability is invalid")
-    match = re.fullmatch(r"([0-9]+)\\.([0-9]+)", compute_capability)
+    match = re.fullmatch(r"([0-9]+)\.([0-9]+)", compute_capability)
     if match is None:
         raise SystemExit("retained manifest compute capability is invalid")
 
