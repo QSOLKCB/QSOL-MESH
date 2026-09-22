@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use qsol_mesh_core::{
-    accelerator::{cuda_smoke_receipt_json, run_cuda_smoke_with_helper},
+    accelerator::{cuda_smoke_receipt_json, run_cuda_smoke},
     available_workers,
     memory::{build_streaming_memory_plan, memory_plan_receipt_json, MemoryPlanRequest},
     planner::{calibrate_cpu_smoke_host, calibrated_plan_receipt_json, DEFAULT_NEAR_TIE_BPS},
     run_smoke, Command, CONTRACT_SCHEMA, CONTRACT_VERSION, SMOKE_WORKLOAD_ID,
 };
-use std::{env, path::PathBuf, process::ExitCode};
+use std::{env, process::ExitCode};
 
 fn usage() -> &'static str {
-    "Usage:\n  mesh inspect [--json]\n  mesh run smoke [--items N] [--workers N] [--json]\n  mesh verify smoke [--items N] [--workers N] [--json]\n  mesh run smoke-cuda [--items N] [--device N] [--helper PATH] [--json]\n  mesh verify smoke-cuda [--items N] [--device N] [--helper PATH] [--json]\n  mesh calibrate smoke [--calibration-items N] [--full-items N] [--repeats N] [--near-tie-bps N] [--json]\n  mesh plan memory [--total-bytes N] [--chunk-bytes N] [--pinned-limit-bytes N] [--accelerator-limit-bytes N] [--partial-bytes N] [--json]\n  mesh <calibrate|plan|receipt> [--json]\n"
+    "Usage:\n  mesh inspect [--json]\n  mesh run smoke [--items N] [--workers N] [--json]\n  mesh verify smoke [--items N] [--workers N] [--json]\n  mesh run smoke-cuda [--items N] [--device N] [--json]\n  mesh verify smoke-cuda [--items N] [--device N] [--json]\n  mesh calibrate smoke [--calibration-items N] [--full-items N] [--repeats N] [--near-tie-bps N] [--json]\n  mesh plan memory [--total-bytes N] [--chunk-bytes N] [--pinned-limit-bytes N] [--accelerator-limit-bytes N] [--partial-bytes N] [--json]\n  mesh <calibrate|plan|receipt> [--json]\n"
 }
 
 fn parse_smoke(args: &[String]) -> Result<(u64, usize, bool), String> {
@@ -40,16 +40,12 @@ fn parse_smoke(args: &[String]) -> Result<(u64, usize, bool), String> {
     Ok((items, workers, json))
 }
 
-fn parse_cuda_smoke(args: &[String]) -> Result<(u64, u32, PathBuf, bool), String> {
+fn parse_cuda_smoke(args: &[String]) -> Result<(u64, u32, bool), String> {
     let mut items = 100_000_u64;
     let mut device = 0_u32;
-    let mut helper = env::var_os("QSOL_MESH_CUDA_HELPER")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| PathBuf::from("target/mesh-cuda-smoke"));
     let mut json = false;
     let mut seen_items = false;
     let mut seen_device = false;
-    let mut seen_helper = false;
     let mut seen_json = false;
 
     let mut i = 0;
@@ -63,6 +59,11 @@ fn parse_cuda_smoke(args: &[String]) -> Result<(u64, u32, PathBuf, bool), String
             json = true;
             i += 1;
             continue;
+        }
+        if flag == "--helper" {
+            return Err(
+                "--helper overrides are not admitted for verified CUDA execution".into(),
+            );
         }
 
         let value = args
@@ -83,16 +84,6 @@ fn parse_cuda_smoke(args: &[String]) -> Result<(u64, u32, PathBuf, bool), String
                 seen_device = true;
                 device = value.parse::<u32>().map_err(|_| "--device must be u32")?;
             }
-            "--helper" => {
-                if seen_helper {
-                    return Err("--helper may be specified only once".into());
-                }
-                seen_helper = true;
-                if value.is_empty() {
-                    return Err("--helper must not be empty".into());
-                }
-                helper = PathBuf::from(value);
-            }
             other => return Err(format!("unsupported CUDA smoke argument: {other}")),
         }
         i += 2;
@@ -102,9 +93,8 @@ fn parse_cuda_smoke(args: &[String]) -> Result<(u64, u32, PathBuf, bool), String
         return Err("--items must be greater than zero".into());
     }
 
-    Ok((items, device, helper, json))
+    Ok((items, device, json))
 }
-
 fn parse_calibration(args: &[String]) -> Result<(u64, u64, usize, u32, bool), String> {
     let mut calibration_items = 10_000_u64;
     let mut full_items = 100_000_u64;
@@ -319,12 +309,12 @@ fn print_smoke(command: Command, args: &[String]) -> Result<(), String> {
 }
 
 fn print_cuda_smoke(command: Command, args: &[String]) -> Result<(), String> {
-    let (items, device, helper, json) = parse_cuda_smoke(args)?;
-    let run = run_cuda_smoke_with_helper(&helper, items, device)?;
+    let (items, device, json) = parse_cuda_smoke(args)?;
+    let run = run_cuda_smoke(items, device)?;
     if json {
         println!(
             "{}",
-            cuda_smoke_receipt_json(command.as_str(), &helper, run).map_err(str::to_owned)?
+            cuda_smoke_receipt_json(command.as_str(), run).map_err(str::to_owned)?
         );
     } else {
         let observation = run.observation();
