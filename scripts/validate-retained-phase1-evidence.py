@@ -282,6 +282,63 @@ concurrent_contract = json.loads(
     (ROOT / "machine" / "concurrent-split-contract.v1.json").read_text(encoding="utf-8")
 )
 
+
+def validate_split_topology(receipt, label):
+    topology = receipt.get("observed_topology", {})
+    request = receipt.get("requested_configuration", {})
+    available_workers = topology.get("available_cpu_workers")
+    compute_major = topology.get("cuda_compute_major")
+    compute_minor = topology.get("cuda_compute_minor")
+    runtime_version = topology.get("cuda_runtime_version")
+    driver_version = topology.get("cuda_driver_version")
+    if (
+        topology.get("accelerator_observed") is not True
+        or not isinstance(available_workers, int)
+        or isinstance(available_workers, bool)
+        or available_workers <= 0
+        or topology.get("cuda_device_ordinal") != request.get("device_ordinal")
+        or not isinstance(compute_major, int)
+        or isinstance(compute_major, bool)
+        or compute_major <= 0
+        or not isinstance(compute_minor, int)
+        or isinstance(compute_minor, bool)
+        or compute_minor < 0
+        or not isinstance(runtime_version, int)
+        or isinstance(runtime_version, bool)
+        or runtime_version <= 0
+        or not isinstance(driver_version, int)
+        or isinstance(driver_version, bool)
+        or driver_version <= 0
+        or topology.get("cuda_evidence_source")
+        != nvidia_contract["observation_contract"]["evidence_source"]
+        or topology.get("cuda_helper_path") != EXPECTED_CUDA_HELPER_PATH
+    ):
+        raise SystemExit(f"{label}: retained CUDA topology evidence drift")
+
+
+def expected_split_memory_plan():
+    if (
+        nvidia_contract["memory_contract"]["persistent_accelerator_pool"] is not False
+        or nvidia_contract["memory_contract"]["pinned_host_staging"] is not False
+    ):
+        raise SystemExit("NVIDIA executor physical-memory claim boundary drift")
+    return {
+        "domains": [
+            static_contract["memory_contract"]["cpu_domain"],
+            static_contract["memory_contract"]["cuda_domain"],
+        ],
+        "per_item_materialization": static_contract["memory_contract"][
+            "per_item_materialization"
+        ],
+        "cpu_temporary_state": "O(cpu-workers)",
+        "accelerator_checksum_buffer_bytes": static_contract["memory_contract"][
+            "accelerator_checksum_buffer_bytes"
+        ],
+        "device_to_host_result_bytes": static_contract["memory_contract"][
+            "device_to_host_result_bytes"
+        ],
+    }
+
 if gpu.get("schema") != EXPECTED_FILES["gpu-verify-100000.json"]["schema"]:
     raise SystemExit("retained CUDA receipt schema drift")
 gpu_request = gpu.get("requested_configuration", {})
@@ -377,20 +434,9 @@ if static.get("source_identity") != {
     "split_schema": "qsol.mesh.static-split.v1",
 }:
     raise SystemExit("retained static source identity drift")
-if static["observed_topology"].get("cuda_helper_path") != EXPECTED_CUDA_HELPER_PATH:
-    raise SystemExit("retained static CUDA helper path drift")
+validate_split_topology(static, "static split")
 static_memory = static.get("memory_plan", {})
-if (
-    static_memory.get("domains")
-    != [static_contract["memory_contract"]["cpu_domain"], static_contract["memory_contract"]["cuda_domain"]]
-    or static_memory.get("per_item_materialization")
-    != static_contract["memory_contract"]["per_item_materialization"]
-    or static_memory.get("accelerator_checksum_buffer_bytes")
-    != static_contract["memory_contract"]["accelerator_checksum_buffer_bytes"]
-    or static_memory.get("device_to_host_result_bytes")
-    != static_contract["memory_contract"]["device_to_host_result_bytes"]
-    or static_memory.get("cpu_temporary_state") != "O(cpu-workers)"
-):
+if static_memory != expected_split_memory_plan():
     raise SystemExit("retained static memory evidence drift")
 static_boundary = rust_string_constant(
     "crates/mesh-core/src/static_split.rs",
@@ -414,20 +460,9 @@ if concurrent.get("source_identity") != {
     "split_schema": "qsol.mesh.concurrent-split.v1",
 }:
     raise SystemExit("retained concurrent source identity drift")
-if concurrent["observed_topology"].get("cuda_helper_path") != EXPECTED_CUDA_HELPER_PATH:
-    raise SystemExit("retained concurrent CUDA helper path drift")
+validate_split_topology(concurrent, "concurrent split")
 concurrent_memory = concurrent.get("memory_plan", {})
-if (
-    concurrent_memory.get("domains")
-    != [static_contract["memory_contract"]["cpu_domain"], static_contract["memory_contract"]["cuda_domain"]]
-    or concurrent_memory.get("per_item_materialization")
-    != static_contract["memory_contract"]["per_item_materialization"]
-    or concurrent_memory.get("accelerator_checksum_buffer_bytes")
-    != static_contract["memory_contract"]["accelerator_checksum_buffer_bytes"]
-    or concurrent_memory.get("device_to_host_result_bytes")
-    != static_contract["memory_contract"]["device_to_host_result_bytes"]
-    or concurrent_memory.get("cpu_temporary_state") != "O(cpu-workers)"
-):
+if concurrent_memory != expected_split_memory_plan():
     raise SystemExit("retained concurrent memory evidence drift")
 concurrent_boundary = rust_string_constant(
     "crates/mesh-core/src/concurrent_split.rs",
