@@ -219,7 +219,7 @@ mod tests {
         let (tx, rx) = mpsc::channel::<()>();
 
         let (cpu, cuda) = run_concurrent_pair(
-            || {
+            move || {
                 rx.recv_timeout(Duration::from_secs(1)).map_err(|_| {
                     "CUDA closure was not dispatched while CPU task was live".to_owned()
                 })?;
