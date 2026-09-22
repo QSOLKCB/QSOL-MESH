@@ -129,9 +129,14 @@ jobs:
           if requested != {
               "calibration_items": 1000,
               "full_work_items": 2000,
+              "repeats": 1,
               "near_tie_bps": 500,
           }:
               raise SystemExit("calibrated plan requested configuration drift")
+          if receipt["source_identity"]["plan_identity"] != contract["plan_identity"]:
+              raise SystemExit("calibrated plan identity drift")
+          if receipt["workload_identity"]["workload_id"] != contract["executed_workload_identity"]:
+              raise SystemExit("calibrated workload identity drift")
           topology = receipt["observed_topology"]
           if topology["available_cpu_workers"] < 1:
               raise SystemExit("calibrated plan did not observe CPU capacity")
@@ -154,15 +159,35 @@ jobs:
               raise SystemExit("calibration observations lost canonical parity")
           if any(observation["setup_ns"] != 0 or observation["transfer_ns"] != 0 for observation in observations):
               raise SystemExit("CPU smoke cost scope drift")
+          candidate_by_id = {candidate["id"]: candidate for candidate in candidates}
+          for observation in observations:
+              candidate = candidate_by_id[observation["candidate_id"]]
+              if not (1 <= observation["effective_cpu_workers"] <= candidate["cpu_workers"]):
+                  raise SystemExit("calibrated effective CPU worker evidence drift")
+              if observation["effective_cpu_workers"] > observation["work_units"]:
+                  raise SystemExit("calibrated effective workers exceed measured work")
           confirmation = calibration["full_work_confirmation"]
           if not confirmation or not all(observation["verified"] for observation in confirmation):
               raise SystemExit("full-work confirmation missing or unverified")
+          if len({observation["checksum"] for observation in confirmation}) != 1:
+              raise SystemExit("full-work confirmation checksum divergence")
+          if any(observation["setup_ns"] != 0 or observation["transfer_ns"] != 0 for observation in confirmation):
+              raise SystemExit("full-work CPU cost scope drift")
           effective = receipt["effective_execution"]
           candidate_ids = {candidate["id"] for candidate in candidates}
           if effective["selected_candidate_id"] not in candidate_ids:
               raise SystemExit("selected candidate is outside candidate set")
           if effective["canonical_candidate_id"] != canonical[0]["id"]:
               raise SystemExit("canonical candidate identity drift")
+          selected_candidate = candidate_by_id[effective["selected_candidate_id"]]
+          selected_confirmation = next(
+              observation for observation in confirmation
+              if observation["candidate_id"] == effective["selected_candidate_id"]
+          )
+          if effective["selected_requested_cpu_workers"] != selected_candidate["cpu_workers"]:
+              raise SystemExit("selected requested worker evidence drift")
+          if effective["selected_effective_cpu_workers"] != selected_confirmation["effective_cpu_workers"]:
+              raise SystemExit("selected effective worker evidence drift")
           if receipt["verification"] != {
               "kind": "canonical-checksum-equality-plus-full-work-confirmation",
               "verified": True,
