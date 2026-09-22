@@ -3,9 +3,7 @@
 use qsol_mesh_core::{
     available_workers,
     memory::{build_streaming_memory_plan, memory_plan_receipt_json, MemoryPlanRequest},
-    planner::{
-        calibrate_cpu_smoke_host, calibrated_plan_receipt_json, DEFAULT_NEAR_TIE_BPS,
-    },
+    planner::{calibrate_cpu_smoke_host, calibrated_plan_receipt_json, DEFAULT_NEAR_TIE_BPS},
     run_smoke, Command, CONTRACT_SCHEMA, CONTRACT_VERSION, SMOKE_WORKLOAD_ID,
 };
 use std::{env, process::ExitCode};
@@ -124,13 +122,7 @@ fn parse_calibration(args: &[String]) -> Result<(u64, u64, usize, u32, bool), St
         return Err("--near-tie-bps must be less than 10000".into());
     }
 
-    Ok((
-        calibration_items,
-        full_items,
-        repeats,
-        near_tie_bps,
-        json,
-    ))
+    Ok((calibration_items, full_items, repeats, near_tie_bps, json))
 }
 
 fn parse_memory_plan(args: &[String]) -> Result<(MemoryPlanRequest, bool), String> {
@@ -261,8 +253,7 @@ fn print_smoke(command: Command, args: &[String]) -> Result<(), String> {
 }
 
 fn print_calibration(args: &[String]) -> Result<(), String> {
-    let (calibration_items, full_items, repeats, near_tie_bps, json) =
-        parse_calibration(args)?;
+    let (calibration_items, full_items, repeats, near_tie_bps, json) = parse_calibration(args)?;
     let plan = calibrate_cpu_smoke_host(
         available_workers(),
         calibration_items,
