@@ -1,0 +1,53 @@
+{
+  "calibration": {
+    "performed": false
+  },
+  "claim_boundary": "experimental-nvidia-cuda-smoke-single-device-helper-reported-topology-not-performance-evidence",
+  "effective_execution": {
+    "backend": "nvidia-cuda",
+    "blocks": 144,
+    "device_ordinal": 0,
+    "reduction": "device-strided-local-sums-plus-atomicAdd-u64",
+    "threads_per_block": 256
+  },
+  "memory_plan": {
+    "accelerator_checksum_buffer_bytes": 8,
+    "domains": [
+      "accelerator-local",
+      "host-pageable"
+    ],
+    "per_item_materialization": false
+  },
+  "observed_topology": {
+    "accelerator_observed": true,
+    "backend": "nvidia-cuda",
+    "compute_major": 12,
+    "compute_minor": 0,
+    "cuda_driver_version": 13020,
+    "cuda_runtime_version": 13020,
+    "device_ordinal": 0,
+    "evidence_source": "cuda-helper-process"
+  },
+  "requested_configuration": {
+    "command": "verify",
+    "device_ordinal": 0,
+    "helper_path": "/home/trent/qsol-mesh-dev/QSOL-MESH/target/mesh-cuda-smoke",
+    "items": 100000
+  },
+  "schema": "qsol.mesh.cuda-smoke-receipt.v1",
+  "source_identity": {
+    "executor_id": "qsol-mesh-cuda-smoke-v1",
+    "runtime": "qsol-mesh-cli",
+    "worker_protocol": "qsol.mesh.cuda-smoke-worker.v1"
+  },
+  "verification": {
+    "checksum": "9d390352e9b7d24c",
+    "kind": "scalar-reference-equality",
+    "reference": "9d390352e9b7d24c",
+    "verified": true
+  },
+  "workload_identity": {
+    "workload_contract_version": "1.0.0",
+    "workload_id": "mesh-smoke-v1"
+  }
+}
