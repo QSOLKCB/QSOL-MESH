@@ -68,6 +68,30 @@ impl CostObservation {
     }
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct CalibrationRequest {
+    pub calibration_units: u64,
+    pub full_work_units: u64,
+    pub repeats: usize,
+    pub near_tie_bps: u32,
+}
+
+impl CalibrationRequest {
+    pub const fn new(
+        calibration_units: u64,
+        full_work_units: u64,
+        repeats: usize,
+        near_tie_bps: u32,
+    ) -> Self {
+        Self {
+            calibration_units,
+            full_work_units,
+            repeats,
+            near_tie_bps,
+        }
+    }
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CalibratedPlan {
     pub topology: TopologyObservation,
@@ -350,23 +374,20 @@ pub fn select_calibrated_plan(
     candidates: Vec<CandidatePlan>,
     calibration: Vec<CostObservation>,
     confirmation: Vec<CostObservation>,
-    calibration_units: u64,
-    full_work_units: u64,
-    repeats: usize,
-    near_tie_bps: u32,
+    request: CalibrationRequest,
 ) -> Result<CalibratedPlan, &'static str> {
-    if repeats == 0 {
+    if request.repeats == 0 {
         return Err("calibration repeats must be greater than zero");
     }
-    if full_work_units < calibration_units {
+    if request.full_work_units < request.calibration_units {
         return Err("full-work confirmation must not be smaller than calibration");
     }
-    if near_tie_bps >= 10_000 {
+    if request.near_tie_bps >= 10_000 {
         return Err("near-tie basis points must be less than 10000");
     }
 
     let canonical = validate_candidate_set(topology, &candidates)?;
-    validate_observations(&candidates, &calibration, calibration_units, true)?;
+    validate_observations(&candidates, &calibration, request.calibration_units, true)?;
     checksums_match_canonical(canonical.id, &calibration)?;
 
     let calibration_winner = best_observed_candidate(&candidates, &calibration)?;
@@ -379,7 +400,7 @@ pub fn select_calibrated_plan(
         || !materially_faster(
             winner_calibration.total_ns()?,
             canonical_calibration.total_ns()?,
-            near_tie_bps,
+            request.near_tie_bps,
         )? {
         canonical.id
     } else {
@@ -391,7 +412,7 @@ pub fn select_calibrated_plan(
     } else {
         vec![canonical.id, provisional]
     };
-    validate_observations(&candidates, &confirmation, full_work_units, false)?;
+    validate_observations(&candidates, &confirmation, request.full_work_units, false)?;
     if confirmation.len() != required_confirmation_ids.len() {
         return Err("full-work confirmation contains unexpected candidates");
     }
@@ -412,7 +433,7 @@ pub fn select_calibrated_plan(
         if materially_faster(
             provisional_full.total_ns()?,
             canonical_full.total_ns()?,
-            near_tie_bps,
+            request.near_tie_bps,
         )? {
             (provisional, "promoted-after-full-work-confirmation")
         } else {
@@ -425,10 +446,10 @@ pub fn select_calibrated_plan(
         candidates,
         calibration,
         confirmation,
-        calibration_units,
-        full_work_units,
-        repeats,
-        near_tie_bps,
+        calibration_units: request.calibration_units,
+        full_work_units: request.full_work_units,
+        repeats: request.repeats,
+        near_tie_bps: request.near_tie_bps,
         provisional_candidate_id: provisional,
         selected_candidate_id: selected,
         canonical_candidate_id: canonical.id,
@@ -535,7 +556,7 @@ pub fn calibrate_cpu_smoke_host(
         || !materially_faster(
             winner_observation.total_ns()?,
             canonical_observation.total_ns()?,
-            near_tie_bps,
+            request.near_tie_bps,
         )? {
         canonical.id
     } else {
@@ -554,10 +575,7 @@ pub fn calibrate_cpu_smoke_host(
         candidates,
         calibration,
         confirmation,
-        calibration_items,
-        full_work_items,
-        repeats,
-        near_tie_bps,
+        CalibrationRequest::new(calibration_items, full_work_items, repeats, near_tie_bps),
     )
 }
 
@@ -593,10 +611,12 @@ pub fn validate_calibrated_plan(plan: &CalibratedPlan) -> Result<(), &'static st
         plan.candidates.clone(),
         plan.calibration.clone(),
         plan.confirmation.clone(),
-        plan.calibration_units,
-        plan.full_work_units,
-        plan.repeats,
-        plan.near_tie_bps,
+        CalibrationRequest::new(
+            plan.calibration_units,
+            plan.full_work_units,
+            plan.repeats,
+            plan.near_tie_bps,
+        ),
     )?;
     if &rebuilt != plan {
         return Err("calibrated plan derived state mismatch");
@@ -723,10 +743,7 @@ mod tests {
             candidates,
             vec![observation(0, 100, 1_000), observation(1, 100, 960)],
             vec![observation(0, 1_000, 10_000)],
-            100,
-            1_000,
-            1,
-            500,
+            CalibrationRequest::new(100, 1_000, 1, 500),
         )
         .unwrap();
         assert_eq!(plan.selected_candidate_id, 0);
