@@ -4,12 +4,12 @@
 //! Candidate generation is topology-derived and bounded. Selection is driven by
 //! measured cost evidence only. Hardware names are never performance authority.
 
-use crate::run_smoke;
+use crate::{run_smoke, SMOKE_WORKLOAD_ID};
 use std::time::Instant;
 
 pub const CALIBRATED_PLAN_SCHEMA: &str = "qsol.mesh.calibrated-plan.v1";
 pub const CALIBRATED_PLAN_RECEIPT_SCHEMA: &str = "qsol.mesh.calibrated-plan-receipt.v1";
-pub const CALIBRATION_WORKLOAD_ID: &str = "mesh-calibration-smoke-v1";
+pub const CALIBRATED_PLAN_ID: &str = "mesh-calibration-smoke-v1";
 pub const CANDIDATE_BUDGET: usize = 4;
 pub const DEFAULT_NEAR_TIE_BPS: u32 = 500;
 pub const CALIBRATED_PLAN_CLAIM_BOUNDARY: &str =
@@ -51,6 +51,7 @@ pub struct CandidatePlan {
 pub struct CostObservation {
     pub candidate_id: u32,
     pub work_units: u64,
+    pub effective_cpu_workers: usize,
     pub service_ns: u128,
     pub setup_ns: u128,
     pub transfer_ns: u128,
@@ -75,6 +76,7 @@ pub struct CalibratedPlan {
     pub confirmation: Vec<CostObservation>,
     pub calibration_units: u64,
     pub full_work_units: u64,
+    pub repeats: usize,
     pub near_tie_bps: u32,
     pub provisional_candidate_id: u32,
     pub selected_candidate_id: u32,
@@ -231,14 +233,41 @@ fn validate_observations(
         {
             return Err("candidate observation IDs must be unique");
         }
-        if candidate_by_id(candidates, observation.candidate_id).is_none() {
+        let Some(candidate) = candidate_by_id(candidates, observation.candidate_id) else {
             return Err("observation references unknown candidate");
-        }
+        };
         if observation.work_units != work_units {
             return Err("observation work units do not match phase");
         }
         if !observation.verified {
             return Err("unverified cost observation is not admissible");
+        }
+        match candidate.backend {
+            BackendKind::Cpu => {
+                if observation.setup_ns != 0 || observation.transfer_ns != 0 {
+                    return Err("CPU smoke observations require zero separate setup and transfer cost");
+                }
+                let effective_as_u64 =
+                    u64::try_from(observation.effective_cpu_workers).unwrap_or(u64::MAX);
+                if observation.effective_cpu_workers == 0
+                    || observation.effective_cpu_workers > candidate.cpu_workers
+                    || effective_as_u64 > observation.work_units
+                {
+                    return Err("CPU observation effective workers exceed measured execution");
+                }
+            }
+            BackendKind::Accelerator => {
+                if observation.effective_cpu_workers != 0 {
+                    return Err("accelerator observation must not report CPU workers");
+                }
+            }
+            BackendKind::HeterogeneousStatic => {
+                if observation.effective_cpu_workers == 0
+                    || observation.effective_cpu_workers > candidate.cpu_workers
+                {
+                    return Err("heterogeneous observation CPU workers exceed candidate");
+                }
+            }
         }
         observation.total_ns()?;
     }
@@ -321,8 +350,12 @@ pub fn select_calibrated_plan(
     confirmation: Vec<CostObservation>,
     calibration_units: u64,
     full_work_units: u64,
+    repeats: usize,
     near_tie_bps: u32,
 ) -> Result<CalibratedPlan, &'static str> {
+    if repeats == 0 {
+        return Err("calibration repeats must be greater than zero");
+    }
     if full_work_units < calibration_units {
         return Err("full-work confirmation must not be smaller than calibration");
     }
@@ -357,17 +390,15 @@ pub fn select_calibrated_plan(
         vec![canonical.id, provisional]
     };
     validate_observations(&candidates, &confirmation, full_work_units, false)?;
+    if confirmation.len() != required_confirmation_ids.len() {
+        return Err("full-work confirmation contains unexpected candidates");
+    }
     for candidate_id in &required_confirmation_ids {
         if observation_by_id(&confirmation, *candidate_id).is_none() {
             return Err("full-work confirmation missing required candidate");
         }
     }
-    let relevant_confirmation: Vec<CostObservation> = confirmation
-        .iter()
-        .copied()
-        .filter(|observation| required_confirmation_ids.contains(&observation.candidate_id))
-        .collect();
-    checksums_match_canonical(canonical.id, &relevant_confirmation)?;
+    checksums_match_canonical(canonical.id, &confirmation)?;
 
     let (selected, reason) = if provisional == canonical.id {
         (canonical.id, "canonical-kept-after-calibration-near-tie")
@@ -394,6 +425,7 @@ pub fn select_calibrated_plan(
         confirmation,
         calibration_units,
         full_work_units,
+        repeats,
         near_tie_bps,
         provisional_candidate_id: provisional,
         selected_candidate_id: selected,
@@ -435,6 +467,7 @@ fn measure_cpu_smoke(
         .try_reserve_exact(repeats)
         .map_err(|_| "timing sample allocation failed")?;
     let mut checksum = None;
+    let mut effective_cpu_workers = None;
     for _ in 0..repeats {
         let started = Instant::now();
         let run = run_smoke(items, candidate.cpu_workers)?;
@@ -446,12 +479,21 @@ fn measure_cpu_smoke(
         } else {
             checksum = Some(run.checksum);
         }
+        if let Some(expected) = effective_cpu_workers {
+            if run.effective_workers != expected {
+                return Err("CPU effective worker count changed between repeats");
+            }
+        } else {
+            effective_cpu_workers = Some(run.effective_workers);
+        }
         timings.push(elapsed);
     }
 
     Ok(CostObservation {
         candidate_id: candidate.id,
         work_units: items,
+        effective_cpu_workers: effective_cpu_workers
+            .ok_or("missing CPU effective worker observation")?,
         service_ns: median(&mut timings)?,
         setup_ns: 0,
         transfer_ns: 0,
@@ -512,6 +554,7 @@ pub fn calibrate_cpu_smoke_host(
         confirmation,
         calibration_items,
         full_work_items,
+        repeats,
         near_tie_bps,
     )
 }
@@ -529,9 +572,10 @@ fn candidate_json(candidate: CandidatePlan) -> String {
 
 fn observation_json(observation: CostObservation) -> Result<String, &'static str> {
     Ok(format!(
-        "{{\"candidate_id\":{},\"work_units\":{},\"service_ns\":{},\"setup_ns\":{},\"transfer_ns\":{},\"total_ns\":{},\"checksum\":\"{:016x}\",\"verified\":{}}}",
+        "{{\"candidate_id\":{},\"work_units\":{},\"effective_cpu_workers\":{},\"service_ns\":{},\"setup_ns\":{},\"transfer_ns\":{},\"total_ns\":{},\"checksum\":\"{:016x}\",\"verified\":{}}}",
         observation.candidate_id,
         observation.work_units,
+        observation.effective_cpu_workers,
         observation.service_ns,
         observation.setup_ns,
         observation.transfer_ns,
@@ -541,7 +585,29 @@ fn observation_json(observation: CostObservation) -> Result<String, &'static str
     ))
 }
 
+pub fn validate_calibrated_plan(plan: &CalibratedPlan) -> Result<(), &'static str> {
+    let rebuilt = select_calibrated_plan(
+        plan.topology,
+        plan.candidates.clone(),
+        plan.calibration.clone(),
+        plan.confirmation.clone(),
+        plan.calibration_units,
+        plan.full_work_units,
+        plan.repeats,
+        plan.near_tie_bps,
+    )?;
+    if &rebuilt != plan {
+        return Err("calibrated plan derived state mismatch");
+    }
+    Ok(())
+}
+
 pub fn calibrated_plan_receipt_json(plan: &CalibratedPlan) -> Result<String, &'static str> {
+    validate_calibrated_plan(plan)?;
+    let selected_candidate = candidate_by_id(&plan.candidates, plan.selected_candidate_id)
+        .ok_or("selected candidate missing")?;
+    let selected_confirmation = observation_by_id(&plan.confirmation, plan.selected_candidate_id)
+        .ok_or("selected full-work confirmation missing")?;
     let candidates = plan
         .candidates
         .iter()
@@ -565,9 +631,10 @@ pub fn calibrated_plan_receipt_json(plan: &CalibratedPlan) -> Result<String, &'s
         .join(",");
 
     Ok(format!(
-        "{{\"schema\":\"{CALIBRATED_PLAN_RECEIPT_SCHEMA}\",\"source_identity\":{{\"runtime\":\"qsol-mesh-cli\",\"plan_schema\":\"{CALIBRATED_PLAN_SCHEMA}\",\"plan_version\":\"1.0.0\"}},\"workload_identity\":{{\"workload_id\":\"{CALIBRATION_WORKLOAD_ID}\",\"workload_contract_version\":\"1.0.0\"}},\"requested_configuration\":{{\"calibration_items\":{},\"full_work_items\":{},\"near_tie_bps\":{}}},\"observed_topology\":{{\"available_cpu_workers\":{},\"accelerator_observed\":{}}},\"effective_execution\":{{\"kind\":\"calibration-and-planning\",\"selected_candidate_id\":{},\"canonical_candidate_id\":{},\"canonical_retained\":{},\"selection_reason\":\"{}\"}},\"memory_plan\":{{\"kind\":\"not-applicable-to-smoke-calibration\",\"physical_memory_claim\":false}},\"calibration\":{{\"candidate_budget\":{CANDIDATE_BUDGET},\"candidate_count\":{},\"provisional_candidate_id\":{},\"candidates\":[{}],\"observations\":[{}],\"full_work_confirmation\":[{}]}},\"verification\":{{\"kind\":\"canonical-checksum-equality-plus-full-work-confirmation\",\"verified\":true}},\"claim_boundary\":\"{CALIBRATED_PLAN_CLAIM_BOUNDARY}\"}}",
+        "{{\"schema\":\"{CALIBRATED_PLAN_RECEIPT_SCHEMA}\",\"source_identity\":{{\"runtime\":\"qsol-mesh-cli\",\"plan_schema\":\"{CALIBRATED_PLAN_SCHEMA}\",\"plan_version\":\"1.0.0\",\"plan_identity\":\"{CALIBRATED_PLAN_ID}\"}},\"workload_identity\":{{\"workload_id\":\"{SMOKE_WORKLOAD_ID}\",\"workload_contract_version\":\"1.0.0\"}},\"requested_configuration\":{{\"calibration_items\":{},\"full_work_items\":{},\"repeats\":{},\"near_tie_bps\":{}}},\"observed_topology\":{{\"available_cpu_workers\":{},\"accelerator_observed\":{}}},\"effective_execution\":{{\"kind\":\"calibration-and-planning\",\"selected_candidate_id\":{},\"canonical_candidate_id\":{},\"canonical_retained\":{},\"selection_reason\":\"{}\",\"selected_requested_cpu_workers\":{},\"selected_effective_cpu_workers\":{}}},\"memory_plan\":{{\"kind\":\"not-applicable-to-smoke-calibration\",\"physical_memory_claim\":false}},\"calibration\":{{\"candidate_budget\":{CANDIDATE_BUDGET},\"candidate_count\":{},\"provisional_candidate_id\":{},\"candidates\":[{}],\"observations\":[{}],\"full_work_confirmation\":[{}]}},\"verification\":{{\"kind\":\"canonical-checksum-equality-plus-full-work-confirmation\",\"verified\":true}},\"claim_boundary\":\"{CALIBRATED_PLAN_CLAIM_BOUNDARY}\"}}",
         plan.calibration_units,
         plan.full_work_units,
+        plan.repeats,
         plan.near_tie_bps,
         plan.topology.available_cpu_workers,
         plan.topology.accelerator_observed,
@@ -575,6 +642,8 @@ pub fn calibrated_plan_receipt_json(plan: &CalibratedPlan) -> Result<String, &'s
         plan.canonical_candidate_id,
         plan.canonical_retained,
         plan.selection_reason,
+        selected_candidate.cpu_workers,
+        selected_confirmation.effective_cpu_workers,
         plan.candidates.len(),
         plan.provisional_candidate_id,
         candidates,
@@ -599,6 +668,7 @@ mod tests {
         CostObservation {
             candidate_id,
             work_units: units,
+            effective_cpu_workers: if candidate_id == 0 { 1 } else { 8 },
             service_ns: total_ns,
             setup_ns: 0,
             transfer_ns: 0,
@@ -653,6 +723,7 @@ mod tests {
             vec![observation(0, 1_000, 10_000)],
             100,
             1_000,
+            1,
             500,
         )
         .unwrap();
@@ -677,6 +748,7 @@ mod tests {
             vec![observation(0, 1_000, 10_000), observation(1, 1_000, 7_000)],
             100,
             1_000,
+            1,
             500,
         )
         .unwrap();
@@ -702,6 +774,7 @@ mod tests {
             vec![observation(0, 1_000, 10_000), observation(1, 1_000, 9_700)],
             100,
             1_000,
+            1,
             500,
         )
         .unwrap();
@@ -750,6 +823,7 @@ mod tests {
                 vec![observation(0, 1_000, 10_000)],
                 100,
                 1_000,
+            1,
                 500,
             ),
             Err("candidate checksum does not match canonical result")
@@ -768,10 +842,81 @@ mod tests {
                 vec![observation(0, 1_000, 10_000)],
                 100,
                 1_000,
+            1,
                 500,
             ),
             Err("unverified cost observation is not admissible")
         );
+    }
+
+    #[test]
+    fn confirmation_rejects_unexpected_or_divergent_recorded_evidence() {
+        let candidates = cpu_candidates();
+        let mut extra = observation(1, 1_000, 9_600);
+        extra.checksum ^= 1;
+        assert_eq!(
+            select_calibrated_plan(
+                TopologyObservation {
+                    available_cpu_workers: 8,
+                    accelerator_observed: false,
+                },
+                candidates,
+                vec![observation(0, 100, 1_000), observation(1, 100, 960)],
+                vec![observation(0, 1_000, 10_000), extra],
+                100,
+                1_000,
+                1,
+                500,
+            ),
+            Err("full-work confirmation contains unexpected candidates")
+        );
+    }
+
+    #[test]
+    fn cpu_smoke_cost_field_constraints_fail_closed() {
+        let candidates = cpu_candidates();
+        let mut invalid = observation(1, 100, 700);
+        invalid.setup_ns = 1;
+        invalid.transfer_ns = 1;
+        assert_eq!(
+            select_calibrated_plan(
+                TopologyObservation {
+                    available_cpu_workers: 8,
+                    accelerator_observed: false,
+                },
+                candidates,
+                vec![observation(0, 100, 1_000), invalid],
+                vec![observation(0, 1_000, 10_000)],
+                100,
+                1_000,
+                1,
+                500,
+            ),
+            Err("CPU smoke observations require zero separate setup and transfer cost")
+        );
+    }
+
+    #[test]
+    fn serializer_revalidates_public_plan_before_claiming_verified() {
+        let mut plan = calibrate_cpu_smoke_host(2, 256, 512, 1, 500).unwrap();
+        plan.confirmation[0].verified = false;
+        assert_eq!(
+            calibrated_plan_receipt_json(&plan),
+            Err("unverified cost observation is not admissible")
+        );
+    }
+
+    #[test]
+    fn effective_workers_and_repeats_are_preserved_as_evidence() {
+        let plan = calibrate_cpu_smoke_host(8, 1, 1, 2, 500).unwrap();
+        let wide = observation_by_id(&plan.calibration, 1).unwrap();
+        assert_eq!(wide.effective_cpu_workers, 1);
+        assert_eq!(plan.repeats, 2);
+        let receipt = calibrated_plan_receipt_json(&plan).unwrap();
+        assert!(receipt.contains("\"repeats\":2"));
+        assert!(receipt.contains("\"effective_cpu_workers\":1"));
+        assert!(receipt.contains("\"workload_id\":\"mesh-smoke-v1\""));
+        assert!(receipt.contains("\"plan_identity\":\"mesh-calibration-smoke-v1\""));
     }
 
     #[test]
