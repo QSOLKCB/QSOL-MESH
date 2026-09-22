@@ -156,16 +156,26 @@ for forbidden in ("cudaMalloc", "cuMemAlloc", "mlock(", "VirtualLock("):
 calibrated = loaded["calibrated-plan-contract.v1.json"]
 if calibrated["plan_identity"] != "mesh-calibration-smoke-v1":
     raise SystemExit("calibrated plan identity drift")
+if calibrated["executed_workload_identity"] != "mesh-smoke-v1":
+    raise SystemExit("calibrated executed workload identity drift")
 if calibrated["candidate_contract"]["maximum_candidates"] != 4:
     raise SystemExit("calibrated candidate budget drift")
 if calibrated["candidate_contract"]["hardware_model_name_may_select_candidate"] is not False:
     raise SystemExit("hardware model name became performance authority")
 if calibrated["measurement_contract"]["measured_evidence_required"] is not True:
     raise SystemExit("calibrated planner no longer requires measured evidence")
+if calibrated["measurement_contract"]["requested_repeat_count_must_be_recorded"] is not True:
+    raise SystemExit("calibrated repeat evidence requirement drift")
+if calibrated["measurement_contract"]["effective_cpu_workers_must_be_recorded"] is not True:
+    raise SystemExit("calibrated effective-worker evidence requirement drift")
+if calibrated["measurement_contract"]["cpu_smoke_nonzero_setup_or_transfer_is_admissible"] is not False:
+    raise SystemExit("CPU smoke cost-field boundary drift")
 if calibrated["measurement_contract"]["accelerator_measurement_status"] != "pending-real-accelerator-executor":
     raise SystemExit("accelerator measurement boundary drift")
 if calibrated["confirmation_contract"]["full_work_confirmation_required_before_noncanonical_promotion"] is not True:
     raise SystemExit("full-work confirmation requirement drift")
+if calibrated["confirmation_contract"]["unexpected_confirmation_observations_allowed"] is not False:
+    raise SystemExit("unexpected confirmation evidence became admissible")
 if calibrated["near_tie_contract"] != {
     "default_basis_points": 500,
     "comparison": "strict-improvement-greater-than-margin",
@@ -175,6 +185,16 @@ if calibrated["near_tie_contract"] != {
     raise SystemExit("near-tie contract drift")
 if calibrated["receipt_contract"]["schema"] != "qsol.mesh.calibrated-plan-receipt.v1":
     raise SystemExit("calibrated plan receipt schema drift")
+for key in (
+    "must_record_executed_workload_identity",
+    "must_keep_plan_identity_separate_from_workload_identity",
+    "must_record_requested_repeat_count",
+    "must_record_effective_cpu_workers_per_observation",
+    "must_record_selected_requested_and_effective_cpu_workers",
+    "serializer_must_revalidate_plan_before_verified_status",
+):
+    if calibrated["receipt_contract"].get(key) is not True:
+        raise SystemExit(f"calibrated receipt contract weakened: {key}")
 
 planner_source = (ROOT / "crates/mesh-core/src/planner.rs").read_text(encoding="utf-8")
 for token in (
@@ -184,6 +204,11 @@ for token in (
     "canonical-restored-after-full-work-near-tie",
     "accelerator candidate lacks observed topology",
     "candidate checksum does not match canonical result",
+    "full-work confirmation contains unexpected candidates",
+    "CPU smoke observations require zero separate setup and transfer cost",
+    "selected_effective_cpu_workers",
+    "SMOKE_WORKLOAD_ID",
+    "validate_calibrated_plan",
 ):
     if token not in planner_source:
         raise SystemExit(f"calibrated planner lost required boundary: {token}")
