@@ -14,7 +14,10 @@
     "requested_device_must_match_observed_device": true,
     "requested_items_must_match_worker_items": true,
     "worker_exit_success_required": true,
-    "single_exact_protocol_line_required": true
+    "single_exact_protocol_line_required": true,
+    "protocol_may_have_at_most_one_line_terminator": true,
+    "verified_run_provenance_must_be_launcher_issued": true,
+    "logical_id_iteration_must_not_wrap_u64": true
   },
   "observation_contract": {
     "device_ordinal_required": true,
