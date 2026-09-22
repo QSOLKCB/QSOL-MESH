@@ -239,6 +239,15 @@ if nvidia["execution_contract"]["real_cuda_kernel_required"] is not True:
     raise SystemExit("CUDA executor no longer requires real kernel execution")
 if nvidia["execution_contract"]["host_scalar_fallback_inside_cuda_worker_allowed"] is not False:
     raise SystemExit("CUDA worker scalar fallback became admissible")
+for key in (
+    "worker_exit_success_required",
+    "single_exact_protocol_line_required",
+    "protocol_may_have_at_most_one_line_terminator",
+    "verified_run_provenance_must_be_launcher_issued",
+    "logical_id_iteration_must_not_wrap_u64",
+):
+    if nvidia["execution_contract"].get(key) is not True:
+        raise SystemExit(f"CUDA execution contract weakened: {key}")
 if nvidia["verification_contract"] != {
     "kind": "mesh-smoke-v1-scalar-reference-equality",
     "rust_launcher_recomputes_scalar_reference": True,
@@ -261,6 +270,9 @@ for token in (
     "cuda_runtime_version",
     "cuda_driver_version",
     "helper-reported-topology-not-performance-evidence",
+    "strip_suffix",
+    "CUDA worker output must contain exactly one protocol line",
+    "fn validate_cuda_worker_observation",
 ):
     if token not in accelerator_source:
         raise SystemExit(f"CUDA Rust launcher lost required boundary: {token}")
@@ -268,6 +280,8 @@ for token in (
 cuda_source = (ROOT / "accelerators/cuda/mesh_smoke_cuda.cu").read_text(encoding="utf-8")
 for token in (
     "__global__ void smoke_kernel",
+    "const unsigned long long remaining = items - id",
+    "if (remaining <= stride)",
     "cudaSetDevice",
     "cudaGetDeviceProperties",
     "cudaRuntimeGetVersion",
@@ -280,6 +294,12 @@ for token in (
 ):
     if token not in cuda_source:
         raise SystemExit(f"CUDA worker lost required execution primitive: {token}")
+if "for (unsigned long long id = tid; id < items; id += stride)" in cuda_source:
+    raise SystemExit("CUDA worker reintroduced wrapping logical-ID for-loop")
+if "pub fn validate_cuda_worker_observation" in accelerator_source:
+    raise SystemExit("raw CUDA observation validation became a public run constructor")
+if "pub observation: CudaWorkerObservation" in accelerator_source or "pub reference: u64" in accelerator_source:
+    raise SystemExit("CUDA run provenance fields became publicly constructible")
 
 build_script = (ROOT / "scripts/build-cuda-helper.sh").read_text(encoding="utf-8")
 for token in ("nvcc", "accelerators/cuda/mesh_smoke_cuda.cu", "target/mesh-cuda-smoke"):
