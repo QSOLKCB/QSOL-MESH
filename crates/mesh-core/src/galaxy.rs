@@ -110,7 +110,10 @@ pub fn partition_logical_ids(
     let base = logical_population / effective;
     let extra = logical_population % effective;
 
-    let mut ranges = Vec::with_capacity(effective_usize);
+    let mut ranges = Vec::new();
+    ranges
+        .try_reserve_exact(effective_usize)
+        .map_err(|_| "partition count exceeds allocation capacity")?;
     let mut start = 0_u64;
     for index in 0..effective_usize {
         let len = base + u64::from((index as u64) < extra);
@@ -249,6 +252,16 @@ mod tests {
         assert_eq!(ranges[0].start, 0);
         assert_eq!(ranges.last().unwrap().end, u64::MAX);
         assert!(ranges.windows(2).all(|pair| pair[0].end == pair[1].start));
+    }
+
+    #[test]
+    fn unallocatable_partition_counts_fail_closed_without_panicking() {
+        let result =
+            std::panic::catch_unwind(|| partition_logical_ids(u64::MAX, usize::MAX));
+        assert_eq!(
+            result,
+            Ok(Err("partition count exceeds allocation capacity"))
+        );
     }
 
     #[test]
