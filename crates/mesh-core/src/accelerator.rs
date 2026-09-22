@@ -7,12 +7,16 @@
 //! workload's scalar oracle.
 
 use crate::{smoke_reference, SMOKE_WORKLOAD_ID};
-use std::{path::Path, process::Command as ProcessCommand};
+use std::{
+    ffi::OsStr,
+    path::{Path, PathBuf},
+    process::Command as ProcessCommand,
+};
 
 pub const CUDA_WORKER_PROTOCOL: &str = "qsol.mesh.cuda-smoke-worker.v1";
 pub const CUDA_EXECUTOR_ID: &str = "qsol-mesh-cuda-smoke-v1";
 pub const CUDA_SMOKE_RECEIPT_SCHEMA: &str = "qsol.mesh.cuda-smoke-receipt.v1";
-pub const CANONICAL_CUDA_HELPER_PATH: &str = "target/mesh-cuda-smoke";
+pub const CANONICAL_CUDA_HELPER_FILENAME: &str = "mesh-cuda-smoke";
 pub const CUDA_SMOKE_CLAIM_BOUNDARY: &str =
     "experimental-nvidia-cuda-smoke-single-device-helper-reported-topology-not-performance-evidence";
 
@@ -29,10 +33,11 @@ pub struct CudaWorkerObservation {
     pub cuda_driver_version: u32,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CudaSmokeRun {
     observation: CudaWorkerObservation,
     reference: u64,
+    helper_path: PathBuf,
 }
 
 impl CudaSmokeRun {
@@ -42,6 +47,10 @@ impl CudaSmokeRun {
 
     pub const fn reference(&self) -> u64 {
         self.reference
+    }
+
+    pub fn helper_path(&self) -> &Path {
+        &self.helper_path
     }
 }
 
@@ -105,7 +114,7 @@ fn validate_cuda_worker_observation(
     requested_items: u64,
     requested_device: u32,
     observation: CudaWorkerObservation,
-) -> Result<CudaSmokeRun, &'static str> {
+) -> Result<u64, &'static str> {
     if requested_items == 0 {
         return Err("items must be greater than zero");
     }
@@ -130,10 +139,7 @@ fn validate_cuda_worker_observation(
         return Err("CUDA checksum does not match scalar smoke oracle");
     }
 
-    Ok(CudaSmokeRun {
-        observation,
-        reference,
-    })
+    Ok(reference)
 }
 
 fn run_cuda_smoke_with_helper(
@@ -169,11 +175,32 @@ fn run_cuda_smoke_with_helper(
     let stdout = std::str::from_utf8(&output.stdout)
         .map_err(|_| "CUDA helper stdout is not UTF-8".to_owned())?;
     let observation = parse_cuda_worker_line(stdout).map_err(str::to_owned)?;
-    validate_cuda_worker_observation(items, device_ordinal, observation).map_err(str::to_owned)
+    let reference =
+        validate_cuda_worker_observation(items, device_ordinal, observation).map_err(str::to_owned)?;
+    Ok(CudaSmokeRun {
+        observation,
+        reference,
+        helper_path: helper_path.to_path_buf(),
+    })
+}
+
+fn canonical_cuda_helper_path() -> Result<PathBuf, String> {
+    let executable = std::env::current_exe()
+        .map_err(|error| format!("cannot resolve running mesh executable: {error}"))?;
+    let executable = std::fs::canonicalize(&executable)
+        .map_err(|error| format!("cannot canonicalize running mesh executable: {error}"))?;
+    let target_dir = executable
+        .ancestors()
+        .find(|path| path.file_name() == Some(OsStr::new("target")))
+        .ok_or_else(|| {
+            "running mesh executable is outside the supported application target tree".to_owned()
+        })?;
+    Ok(target_dir.join(CANONICAL_CUDA_HELPER_FILENAME))
 }
 
 pub fn run_cuda_smoke(items: u64, device_ordinal: u32) -> Result<CudaSmokeRun, String> {
-    run_cuda_smoke_with_helper(Path::new(CANONICAL_CUDA_HELPER_PATH), items, device_ordinal)
+    let helper_path = canonical_cuda_helper_path()?;
+    run_cuda_smoke_with_helper(&helper_path, items, device_ordinal)
 }
 
 fn json_escape(value: &str) -> String {
@@ -200,16 +227,22 @@ pub fn cuda_smoke_receipt_json(command: &str, run: CudaSmokeRun) -> Result<Strin
         return Err("CUDA smoke receipt command must be run or verify");
     }
 
-    let validated = validate_cuda_worker_observation(
+    let reference = validate_cuda_worker_observation(
         run.observation.items,
         run.observation.device_ordinal,
         run.observation,
     )?;
-    if validated != run {
+    if reference != run.reference {
         return Err("CUDA smoke run derived state mismatch");
     }
 
-    let helper = json_escape(CANONICAL_CUDA_HELPER_PATH);
+    let canonical_helper =
+        canonical_cuda_helper_path().map_err(|_| "cannot resolve canonical CUDA worker path")?;
+    if run.helper_path != canonical_helper {
+        return Err("CUDA smoke run was not produced by the canonical worker path");
+    }
+
+    let helper = json_escape(&run.helper_path.to_string_lossy());
     let observation = run.observation();
 
     Ok(format!(
@@ -274,8 +307,8 @@ mod tests {
     #[test]
     fn worker_observation_must_match_request_and_oracle() {
         let observation = parse_cuda_worker_line(&valid_line()).unwrap();
-        let run = validate_cuda_worker_observation(1_000, 0, observation).unwrap();
-        assert_eq!(run.reference(), 0xd388_6842_145b_489c);
+        let reference = validate_cuda_worker_observation(1_000, 0, observation).unwrap();
+        assert_eq!(reference, 0xd388_6842_145b_489c);
 
         assert_eq!(
             validate_cuda_worker_observation(999, 0, observation),
@@ -295,6 +328,32 @@ mod tests {
     }
 
     #[test]
+    fn canonical_helper_path_is_independent_of_current_working_directory() {
+        let resolved = canonical_cuda_helper_path().unwrap();
+        assert!(resolved.is_absolute());
+        assert_eq!(
+            resolved.file_name(),
+            Some(OsStr::new(CANONICAL_CUDA_HELPER_FILENAME))
+        );
+        assert_ne!(resolved, PathBuf::from(CANONICAL_CUDA_HELPER_FILENAME));
+    }
+
+    #[test]
+    fn receipt_rejects_noncanonical_launcher_path() {
+        let observation = parse_cuda_worker_line(&valid_line()).unwrap();
+        let reference = validate_cuda_worker_observation(1_000, 0, observation).unwrap();
+        let run = CudaSmokeRun {
+            observation,
+            reference,
+            helper_path: PathBuf::from("/tmp/forged/mesh-cuda-smoke"),
+        };
+        assert_eq!(
+            cuda_smoke_receipt_json("run", run),
+            Err("CUDA smoke run was not produced by the canonical worker path")
+        );
+    }
+
+    #[test]
     fn missing_canonical_helper_fails_closed() {
         let result = run_cuda_smoke(1_000, 0);
         assert!(result.is_err());
@@ -303,7 +362,13 @@ mod tests {
     #[test]
     fn receipt_requires_revalidated_cuda_execution() {
         let observation = parse_cuda_worker_line(&valid_line()).unwrap();
-        let run = validate_cuda_worker_observation(1_000, 0, observation).unwrap();
+        let reference = validate_cuda_worker_observation(1_000, 0, observation).unwrap();
+        let helper_path = canonical_cuda_helper_path().unwrap();
+        let run = CudaSmokeRun {
+            observation,
+            reference,
+            helper_path: helper_path.clone(),
+        };
         let receipt = cuda_smoke_receipt_json("run", run).unwrap();
         for section in [
             "\"source_identity\"",
@@ -319,7 +384,10 @@ mod tests {
             assert!(receipt.contains(section));
         }
         assert!(receipt.contains("\"backend\":\"nvidia-cuda\""));
-        assert!(receipt.contains("\"helper_path\":\"target/mesh-cuda-smoke\""));
+        assert!(receipt.contains(&format!(
+            "\"helper_path\":\"{}\"",
+            json_escape(&helper_path.to_string_lossy())
+        )));
         assert!(receipt.contains("\"verified\":true"));
         assert!(receipt.contains("\"checksum\":\"d3886842145b489c\""));
     }
