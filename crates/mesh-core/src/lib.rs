@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 pub mod galaxy;
+pub mod memory;
 
 use std::thread;
 
