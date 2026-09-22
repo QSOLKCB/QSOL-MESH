@@ -30,8 +30,18 @@ pub struct CudaWorkerObservation {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct CudaSmokeRun {
-    pub observation: CudaWorkerObservation,
-    pub reference: u64,
+    observation: CudaWorkerObservation,
+    reference: u64,
+}
+
+impl CudaSmokeRun {
+    pub const fn observation(&self) -> CudaWorkerObservation {
+        self.observation
+    }
+
+    pub const fn reference(&self) -> u64 {
+        self.reference
+    }
 }
 
 fn parse_prefixed_u64(field: &str, prefix: &str) -> Result<u64, &'static str> {
@@ -61,12 +71,18 @@ fn parse_prefixed_hex_u64(field: &str, prefix: &str) -> Result<u64, &'static str
 }
 
 pub fn parse_cuda_worker_line(line: &str) -> Result<CudaWorkerObservation, &'static str> {
-    let trimmed = line.trim_end_matches(['\r', '\n']);
-    if trimmed.contains('\n') || trimmed.contains('\r') {
+    let protocol_line = if let Some(stripped) = line.strip_suffix("\r\n") {
+        stripped
+    } else if let Some(stripped) = line.strip_suffix('\n') {
+        stripped
+    } else {
+        line
+    };
+    if protocol_line.contains('\n') || protocol_line.contains('\r') {
         return Err("CUDA worker output must contain exactly one protocol line");
     }
 
-    let fields: Vec<&str> = trimmed.split('\t').collect();
+    let fields: Vec<&str> = protocol_line.split('\t').collect();
     if fields.len() != 10 || fields[0] != CUDA_WORKER_PROTOCOL {
         return Err("CUDA worker protocol shape mismatch");
     }
@@ -84,7 +100,7 @@ pub fn parse_cuda_worker_line(line: &str) -> Result<CudaWorkerObservation, &'sta
     })
 }
 
-pub fn validate_cuda_worker_observation(
+fn validate_cuda_worker_observation(
     requested_items: u64,
     requested_device: u32,
     observation: CudaWorkerObservation,
@@ -193,7 +209,7 @@ pub fn cuda_smoke_receipt_json(
     }
 
     let helper = json_escape(&helper_path.to_string_lossy());
-    let observation = run.observation;
+    let observation = run.observation();
 
     Ok(format!(
         "{{\"schema\":\"{CUDA_SMOKE_RECEIPT_SCHEMA}\",\"source_identity\":{{\"runtime\":\"qsol-mesh-cli\",\"executor_id\":\"{CUDA_EXECUTOR_ID}\",\"worker_protocol\":\"{CUDA_WORKER_PROTOCOL}\"}},\"workload_identity\":{{\"workload_id\":\"{SMOKE_WORKLOAD_ID}\",\"workload_contract_version\":\"1.0.0\"}},\"requested_configuration\":{{\"command\":\"{command}\",\"items\":{},\"device_ordinal\":{},\"helper_path\":\"{}\"}},\"observed_topology\":{{\"accelerator_observed\":true,\"backend\":\"nvidia-cuda\",\"device_ordinal\":{},\"compute_major\":{},\"compute_minor\":{},\"cuda_runtime_version\":{},\"cuda_driver_version\":{},\"evidence_source\":\"cuda-helper-process\"}},\"effective_execution\":{{\"backend\":\"nvidia-cuda\",\"device_ordinal\":{},\"blocks\":{},\"threads_per_block\":{},\"reduction\":\"device-strided-local-sums-plus-atomicAdd-u64\"}},\"memory_plan\":{{\"domains\":[\"accelerator-local\",\"host-pageable\"],\"accelerator_checksum_buffer_bytes\":8,\"per_item_materialization\":false}},\"calibration\":{{\"performed\":false}},\"verification\":{{\"kind\":\"scalar-reference-equality\",\"checksum\":\"{:016x}\",\"reference\":\"{:016x}\",\"verified\":true}},\"claim_boundary\":\"{CUDA_SMOKE_CLAIM_BOUNDARY}\"}}",
@@ -209,7 +225,7 @@ pub fn cuda_smoke_receipt_json(
         observation.blocks,
         observation.threads_per_block,
         observation.checksum,
-        run.reference
+        run.reference()
     ))
 }
 
@@ -245,6 +261,9 @@ mod tests {
     fn malformed_worker_protocol_fails_closed() {
         assert!(parse_cuda_worker_line("not-the-protocol").is_err());
         assert!(parse_cuda_worker_line(&(valid_line() + "\textra=1")).is_err());
+        assert!(parse_cuda_worker_line(&(valid_line() + "\n\n")).is_err());
+        assert!(parse_cuda_worker_line(&(valid_line() + "\r\n\r\n")).is_err());
+        assert!(parse_cuda_worker_line(&(valid_line() + "\r")).is_err());
         assert!(parse_cuda_worker_line(
             &valid_line().replace("checksum=d3886842145b489c", "checksum=1234")
         )
@@ -255,7 +274,7 @@ mod tests {
     fn worker_observation_must_match_request_and_oracle() {
         let observation = parse_cuda_worker_line(&valid_line()).unwrap();
         let run = validate_cuda_worker_observation(1_000, 0, observation).unwrap();
-        assert_eq!(run.reference, 0xd388_6842_145b_489c);
+        assert_eq!(run.reference(), 0xd388_6842_145b_489c);
 
         assert_eq!(
             validate_cuda_worker_observation(999, 0, observation),
