@@ -257,10 +257,10 @@ mod tests {
     #[test]
     fn unallocatable_partition_counts_fail_closed_without_panicking() {
         let result = std::panic::catch_unwind(|| partition_logical_ids(u64::MAX, usize::MAX));
-        assert_eq!(
+        assert!(matches!(
             result,
             Ok(Err("partition count exceeds allocation capacity"))
-        );
+        ));
     }
 
     #[test]
