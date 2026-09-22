@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
 pub mod accelerator;
+pub mod concurrent_split;
 pub mod galaxy;
 pub mod memory;
 pub mod planner;
 pub mod static_split;
-pub mod concurrent_split;
 
 use std::thread;
 
