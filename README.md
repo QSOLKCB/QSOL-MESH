@@ -50,3 +50,23 @@ mesh plan memory \
 This is **planning evidence only**. The plan hard-fails if it attempts to claim physical materialization. Real pinned host pages and persistent accelerator-local allocations remain backend-owned and are still gated on the real accelerator executor.
 
 See `MEMORY-BROKER.md` and `machine/memory-plan-contract.v1.json`.
+
+
+## Phase 4 calibrated planning
+
+QSOL-MESH now has a deterministic measured planner for the executable CPU bring-up workload. Candidate plans are derived from observed topology, bounded to a fixed budget, measured against the same verified workload, and never selected from hardware model names.
+
+```sh
+mesh calibrate smoke \
+  --calibration-items 10000 \
+  --full-items 100000 \
+  --repeats 3 \
+  --near-tie-bps 500 \
+  --json
+```
+
+The planner keeps the canonical one-worker plan unless another measured candidate beats it by more than the configured margin. Any noncanonical calibration winner must then repeat that win against canonical on the full requested work before promotion. Otherwise canonical is retained or restored.
+
+Current executable calibration is CPU-only because QSOL-MESH still has no real accelerator executor. The contract already separates `service_ns`, `setup_ns`, and `transfer_ns`, but accelerator cost evidence remains unavailable rather than synthesized.
+
+See `CALIBRATED-PLANNING.md` and `machine/calibrated-plan-contract.v1.json`.
