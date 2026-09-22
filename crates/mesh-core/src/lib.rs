@@ -2,6 +2,7 @@
 
 pub mod galaxy;
 pub mod memory;
+pub mod planner;
 
 use std::thread;
 
