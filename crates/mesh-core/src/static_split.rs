@@ -78,7 +78,7 @@ pub fn validate_static_split_request(request: StaticSplitRequest) -> Result<(), 
     Ok(())
 }
 
-fn validate_partition_checksums(
+pub(crate) fn validate_partition_checksums(
     request: StaticSplitRequest,
     cpu_checksum: u64,
     cuda_checksum: u64,

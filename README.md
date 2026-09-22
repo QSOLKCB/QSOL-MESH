@@ -56,6 +56,25 @@ This stage is deliberately **sequential**: CPU runs first, CUDA second, and rece
 
 See `STATIC-SPLIT.md` and `machine/static-split-contract.v1.json`.
 
+### Concurrent CPU/CUDA dispatch
+
+The final Phase 1 implementation rung keeps the same fixed split but dispatches the CPU range task before invoking the canonical CUDA range executor:
+
+```sh
+mesh run smoke-concurrent \
+  --items 100000 \
+  --cpu-items 40000 \
+  --cpu-workers 8 \
+  --device 0 \
+  --json
+```
+
+The CPU task is joined only after the CUDA executor call returns. Reduction remains deterministic in CPU→CUDA partition order, so completion order cannot alter the checksum.
+
+The receipt deliberately says `"kernel_overlap_measured":false`. This stage establishes concurrent executor dispatch; it does not claim measured CUDA-kernel/CPU-compute overlap or performance gain.
+
+See `CONCURRENT-SPLIT.md` and `machine/concurrent-split-contract.v1.json`.
+
 ## Phase 2 GALAXY adapter boundary
 
 The first external adapter now has a machine-readable contract plus reusable range/reduction primitives. MESH can split a GALAXY logical population into complete half-open ranges, emit executor-local regeneration requests, accept compact range-bound `u64` partials in any completion order, validate exact coverage, reduce deterministically, and fail closed on oracle disagreement.

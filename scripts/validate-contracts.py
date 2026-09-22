@@ -13,6 +13,7 @@ EXPECTED = {
     "calibrated-plan-contract.v1.json":"qsol.mesh.calibrated-plan-contract.v1",
     "nvidia-executor-contract.v1.json":"qsol.mesh.nvidia-executor-contract.v1",
     "static-split-contract.v1.json":"qsol.mesh.static-split-contract.v1",
+    "concurrent-split-contract.v1.json":"qsol.mesh.concurrent-split-contract.v1",
     "evidence-contract.v1.json":"qsol.mesh.evidence-contract.v1",
 }
 loaded = {}
@@ -436,12 +437,77 @@ for token in ("smoke_reference_range", "run_smoke_range", "smoke logical range o
 if "smoke-static" not in cli_source or "--cpu-items is required for a fixed static split" not in cli_source:
     raise SystemExit("static split CLI lost explicit fixed geometry")
 
+
+concurrent = loaded["concurrent-split-contract.v1.json"]
+if concurrent["split_id"] != "mesh-smoke-concurrent-cpu-cuda-v1":
+    raise SystemExit("concurrent split identity drift")
+if concurrent["partition_source_contract"] != "qsol.mesh.static-split-contract.v1":
+    raise SystemExit("concurrent split static-geometry authority drift")
+if concurrent["partition_contract"] != {
+    "reuse_static_fixed_geometry": True,
+    "caller_supplies_cpu_items": True,
+    "adaptive_repartitioning": False,
+    "dynamic_work_stealing": False,
+    "hardware_name_may_choose_split": False,
+}:
+    raise SystemExit("concurrent split partition contract drift")
+if concurrent["dispatch_contract"] != {
+    "kind": "cpu-task-spawned-before-cuda-call-v1",
+    "cpu_task_spawned_before_cuda_call": True,
+    "cpu_joined_after_cuda_call_return": True,
+    "cpu_cuda_executor_calls_concurrently_dispatched": True,
+    "cuda_kernel_level_overlap_measured": False,
+    "cuda_kernel_level_overlap_may_be_claimed": False,
+    "cpu_fallback_on_cuda_failure": False,
+}:
+    raise SystemExit("concurrent split dispatch contract drift")
+if concurrent["verification_contract"] != {
+    "each_partition_requires_range_oracle": True,
+    "full_reduction_requires_scalar_oracle": True,
+    "verified_status_requires_both_executor_results": True,
+}:
+    raise SystemExit("concurrent split verification contract drift")
+if concurrent["reduction_contract"] != {
+    "kind": "partition-order-wrapping-u64",
+    "order": ["cpu", "nvidia-cuda"],
+    "completion_order_may_change_reduction_order": False,
+}:
+    raise SystemExit("concurrent split reduction contract drift")
+if concurrent["receipt_contract"]["schema"] != "qsol.mesh.concurrent-split-receipt.v1":
+    raise SystemExit("concurrent split receipt schema drift")
+if concurrent["ci_boundary"]["default_github_runner_has_cuda_execution_evidence"] is not False:
+    raise SystemExit("concurrent split CI falsely claims CUDA execution evidence")
+if concurrent["ci_boundary"]["ci_may_claim_cuda_kernel_overlap_without_cuda_capable_measurement"] is not False:
+    raise SystemExit("concurrent split CI kernel-overlap boundary weakened")
+if concurrent["ci_boundary"]["ci_may_claim_concurrent_heterogeneous_execution_without_cuda_capable_runner"] is not False:
+    raise SystemExit("concurrent split CI execution-evidence boundary weakened")
+
+concurrent_source = (ROOT / "crates/mesh-core/src/concurrent_split.rs").read_text(encoding="utf-8")
+for token in (
+    "run_concurrent_smoke_partition",
+    "scope.spawn(cpu_fn)",
+    "let cuda_result = cuda_fn()",
+    "cpu_handle",
+    '\\"concurrent_dispatch\\":true',
+    '\\"kernel_overlap_measured\\":false',
+    "partition-order-wrapping-u64",
+    "cpu_fallback",
+    "run_cuda_smoke_range",
+):
+    if token not in concurrent_source:
+        raise SystemExit(f"concurrent split source lost required boundary: {token}")
+if "join()" not in concurrent_source:
+    raise SystemExit("concurrent split lost CPU join lifecycle")
+if "smoke-concurrent" not in cli_source:
+    raise SystemExit("concurrent split CLI surface missing")
+
 agents = (ROOT / "AGENTS.md").read_text(encoding="utf-8")
 for contract_name in (
     "machine/memory-plan-contract.v1.json",
     "machine/calibrated-plan-contract.v1.json",
     "machine/nvidia-executor-contract.v1.json",
     "machine/static-split-contract.v1.json",
+    "machine/concurrent-split-contract.v1.json",
 ):
     if contract_name not in agents:
         raise SystemExit(f"AGENTS.md does not expose normative contract: {contract_name}")

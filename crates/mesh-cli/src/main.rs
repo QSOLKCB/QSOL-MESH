@@ -3,6 +3,7 @@
 use qsol_mesh_core::{
     accelerator::{cuda_smoke_receipt_json, run_cuda_smoke},
     available_workers,
+    concurrent_split::{concurrent_split_receipt_json, run_concurrent_smoke_partition},
     memory::{build_streaming_memory_plan, memory_plan_receipt_json, MemoryPlanRequest},
     planner::{calibrate_cpu_smoke_host, calibrated_plan_receipt_json, DEFAULT_NEAR_TIE_BPS},
     run_smoke,
@@ -15,7 +16,7 @@ use qsol_mesh_core::{
 use std::{env, process::ExitCode};
 
 fn usage() -> &'static str {
-    "Usage:\n  mesh inspect [--json]\n  mesh run smoke [--items N] [--workers N] [--json]\n  mesh verify smoke [--items N] [--workers N] [--json]\n  mesh run smoke-cuda [--items N] [--device N] [--json]\n  mesh verify smoke-cuda [--items N] [--device N] [--json]\n  mesh run smoke-static --cpu-items N [--items N] [--cpu-workers N] [--device N] [--json]\n  mesh verify smoke-static --cpu-items N [--items N] [--cpu-workers N] [--device N] [--json]\n  mesh calibrate smoke [--calibration-items N] [--full-items N] [--repeats N] [--near-tie-bps N] [--json]\n  mesh plan memory [--total-bytes N] [--chunk-bytes N] [--pinned-limit-bytes N] [--accelerator-limit-bytes N] [--partial-bytes N] [--json]\n  mesh <calibrate|plan|receipt> [--json]\n"
+    "Usage:\n  mesh inspect [--json]\n  mesh run smoke [--items N] [--workers N] [--json]\n  mesh verify smoke [--items N] [--workers N] [--json]\n  mesh run smoke-cuda [--items N] [--device N] [--json]\n  mesh verify smoke-cuda [--items N] [--device N] [--json]\n  mesh run smoke-static --cpu-items N [--items N] [--cpu-workers N] [--device N] [--json]\n  mesh verify smoke-static --cpu-items N [--items N] [--cpu-workers N] [--device N] [--json]\n  mesh run smoke-concurrent --cpu-items N [--items N] [--cpu-workers N] [--device N] [--json]\n  mesh verify smoke-concurrent --cpu-items N [--items N] [--cpu-workers N] [--device N] [--json]\n  mesh calibrate smoke [--calibration-items N] [--full-items N] [--repeats N] [--near-tie-bps N] [--json]\n  mesh plan memory [--total-bytes N] [--chunk-bytes N] [--pinned-limit-bytes N] [--accelerator-limit-bytes N] [--partial-bytes N] [--json]\n  mesh <calibrate|plan|receipt> [--json]\n"
 }
 
 fn parse_smoke(args: &[String]) -> Result<(u64, usize, bool), String> {
@@ -442,6 +443,32 @@ fn print_static_split(command: Command, args: &[String]) -> Result<(), String> {
     Ok(())
 }
 
+fn print_concurrent_split(command: Command, args: &[String]) -> Result<(), String> {
+    let (request, json) = parse_static_split(args)?;
+    let run = run_concurrent_smoke_partition(request)?;
+    if json {
+        println!(
+            "{}",
+            concurrent_split_receipt_json(command.as_str(), &run).map_err(str::to_owned)?
+        );
+    } else {
+        let cpu = run.cpu();
+        let cuda = run.cuda().observation();
+        println!(
+            "{} concurrent-split cpu=[0,{}) workers={}/{} cuda=[{}, {}) device={} checksum={:016x} concurrent_dispatch=true kernel_overlap_measured=false verified=true",
+            SMOKE_WORKLOAD_ID,
+            request.cpu_items,
+            cpu.effective_workers,
+            cpu.requested_workers,
+            request.cpu_items,
+            request.items,
+            cuda.device_ordinal,
+            run.checksum()
+        );
+    }
+    Ok(())
+}
+
 fn print_calibration(args: &[String]) -> Result<(), String> {
     let (calibration_items, full_items, repeats, near_tie_bps, json) = parse_calibration(args)?;
     let plan = calibrate_cpu_smoke_host(
@@ -534,6 +561,11 @@ fn main() -> ExitCode {
             if args.get(1).map(String::as_str) == Some("smoke-static") =>
         {
             print_static_split(command, &args[2..])
+        }
+        Command::Run | Command::Verify
+            if args.get(1).map(String::as_str) == Some("smoke-concurrent") =>
+        {
+            print_concurrent_split(command, &args[2..])
         }
         Command::Calibrate if args.get(1).map(String::as_str) == Some("smoke") => {
             print_calibration(&args[2..])

@@ -1,0 +1,56 @@
+{
+  "schema": "qsol.mesh.concurrent-split-contract.v1",
+  "contract_version": "1.0.0",
+  "split_id": "mesh-smoke-concurrent-cpu-cuda-v1",
+  "workload_identity": "mesh-smoke-v1",
+  "partition_source_contract": "qsol.mesh.static-split-contract.v1",
+  "cpu_executor": "qsol-mesh-cpu-smoke-v1",
+  "cuda_executor": "qsol-mesh-cuda-smoke-v1",
+  "partition_contract": {
+    "reuse_static_fixed_geometry": true,
+    "caller_supplies_cpu_items": true,
+    "adaptive_repartitioning": false,
+    "dynamic_work_stealing": false,
+    "hardware_name_may_choose_split": false
+  },
+  "dispatch_contract": {
+    "kind": "cpu-task-spawned-before-cuda-call-v1",
+    "cpu_task_spawned_before_cuda_call": true,
+    "cpu_joined_after_cuda_call_return": true,
+    "cpu_cuda_executor_calls_concurrently_dispatched": true,
+    "cuda_kernel_level_overlap_measured": false,
+    "cuda_kernel_level_overlap_may_be_claimed": false,
+    "cpu_fallback_on_cuda_failure": false
+  },
+  "verification_contract": {
+    "each_partition_requires_range_oracle": true,
+    "full_reduction_requires_scalar_oracle": true,
+    "verified_status_requires_both_executor_results": true
+  },
+  "reduction_contract": {
+    "kind": "partition-order-wrapping-u64",
+    "order": [
+      "cpu",
+      "nvidia-cuda"
+    ],
+    "completion_order_may_change_reduction_order": false
+  },
+  "receipt_contract": {
+    "schema": "qsol.mesh.concurrent-split-receipt.v1",
+    "must_include_existing_evidence_sections": true,
+    "must_record_concurrent_dispatch_true": true,
+    "must_record_adaptive_false": true,
+    "must_record_kernel_overlap_measured_false": true,
+    "must_record_deterministic_reduction_order": true,
+    "must_record_partition_range_oracles": true,
+    "must_record_full_scalar_oracle": true
+  },
+  "ci_boundary": {
+    "default_github_runner_has_cuda_execution_evidence": false,
+    "ci_may_validate_dispatch_semantics_with_test_closures": true,
+    "ci_may_claim_cuda_kernel_overlap_without_cuda_capable_measurement": false,
+    "ci_may_claim_concurrent_heterogeneous_execution_without_cuda_capable_runner": false
+  },
+  "evidence_status": "implementation-complete-retained-cuda-host-concurrent-receipt-pending",
+  "claim_boundary": "Concurrent dispatch of the fixed CPU/CUDA smoke partition only. CPU range execution runs in a spawned task while the canonical CUDA range executor call is active before CPU join. Reduction remains deterministic and non-adaptive. Kernel-level overlap is not measured or claimed, and this is not performance evidence."
+}
