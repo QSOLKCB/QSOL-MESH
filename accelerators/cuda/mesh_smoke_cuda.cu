@@ -2,7 +2,9 @@
 #include <cuda_runtime.h>
 
 #include <cerrno>
+#include <chrono>
 #include <cinttypes>
+#include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -85,6 +87,17 @@ int fail_cuda(const char* operation, cudaError_t error) {
     return 3;
 }
 
+using SteadyClock = std::chrono::steady_clock;
+
+unsigned long long host_elapsed_ns(
+    SteadyClock::time_point start,
+    SteadyClock::time_point end
+) {
+    const auto elapsed =
+        std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
+    return elapsed <= 0 ? 0ULL : static_cast<unsigned long long>(elapsed);
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -94,6 +107,8 @@ int main(int argc, char** argv) {
     bool saw_start = false;
     bool saw_items = false;
     bool saw_device = false;
+    bool timing_v2 = false;
+    bool saw_timing_v2 = false;
 
     for (int index = 1; index < argc; ++index) {
         if (std::strcmp(argv[index], "--start") == 0) {
@@ -117,6 +132,13 @@ int main(int argc, char** argv) {
             }
             saw_device = true;
             ++index;
+        } else if (std::strcmp(argv[index], "--timing-v2") == 0) {
+            if (saw_timing_v2) {
+                std::fprintf(stderr, "mesh-cuda-smoke: --timing-v2 may be specified only once\n");
+                return 2;
+            }
+            saw_timing_v2 = true;
+            timing_v2 = true;
         } else {
             std::fprintf(stderr, "mesh-cuda-smoke: unsupported argument: %s\n", argv[index]);
             return 2;
@@ -135,6 +157,16 @@ int main(int argc, char** argv) {
         std::fprintf(stderr, "mesh-cuda-smoke: --device must be non-negative\n");
         return 2;
     }
+    if (timing_v2 && saw_start) {
+        std::fprintf(
+            stderr,
+            "mesh-cuda-smoke: --timing-v2 is currently admitted only for full smoke execution\n"
+        );
+        return 2;
+    }
+
+    const auto worker_started = SteadyClock::now();
+    const auto setup_started = worker_started;
 
     cudaError_t status = cudaSetDevice(device_ordinal);
     if (status != cudaSuccess) {
@@ -189,37 +221,159 @@ int main(int argc, char** argv) {
         return fail_cuda("cudaMemset", status);
     }
 
+    cudaEvent_t kernel_start_event = nullptr;
+    cudaEvent_t kernel_stop_event = nullptr;
+    if (timing_v2) {
+        status = cudaEventCreate(&kernel_start_event);
+        if (status != cudaSuccess) {
+            cudaFree(device_checksum);
+            return fail_cuda("cudaEventCreate(kernel-start)", status);
+        }
+        status = cudaEventCreate(&kernel_stop_event);
+        if (status != cudaSuccess) {
+            cudaEventDestroy(kernel_start_event);
+            cudaFree(device_checksum);
+            return fail_cuda("cudaEventCreate(kernel-stop)", status);
+        }
+    }
+
+    const auto setup_finished = SteadyClock::now();
+
+    if (timing_v2) {
+        status = cudaEventRecord(kernel_start_event);
+        if (status != cudaSuccess) {
+            cudaEventDestroy(kernel_stop_event);
+            cudaEventDestroy(kernel_start_event);
+            cudaFree(device_checksum);
+            return fail_cuda("cudaEventRecord(kernel-start)", status);
+        }
+    }
+
     smoke_kernel<<<blocks, kThreadsPerBlock>>>(start, items, device_checksum);
     status = cudaGetLastError();
     if (status != cudaSuccess) {
+        if (timing_v2) {
+            cudaEventDestroy(kernel_stop_event);
+            cudaEventDestroy(kernel_start_event);
+        }
         cudaFree(device_checksum);
         return fail_cuda("kernel launch", status);
     }
 
+    if (timing_v2) {
+        status = cudaEventRecord(kernel_stop_event);
+        if (status != cudaSuccess) {
+            cudaEventDestroy(kernel_stop_event);
+            cudaEventDestroy(kernel_start_event);
+            cudaFree(device_checksum);
+            return fail_cuda("cudaEventRecord(kernel-stop)", status);
+        }
+    }
+
     status = cudaDeviceSynchronize();
     if (status != cudaSuccess) {
+        if (timing_v2) {
+            cudaEventDestroy(kernel_stop_event);
+            cudaEventDestroy(kernel_start_event);
+        }
         cudaFree(device_checksum);
         return fail_cuda("cudaDeviceSynchronize", status);
     }
 
+    unsigned long long kernel_device_ns = 0;
+    if (timing_v2) {
+        float kernel_ms = 0.0F;
+        status = cudaEventElapsedTime(&kernel_ms, kernel_start_event, kernel_stop_event);
+        if (status != cudaSuccess) {
+            cudaEventDestroy(kernel_stop_event);
+            cudaEventDestroy(kernel_start_event);
+            cudaFree(device_checksum);
+            return fail_cuda("cudaEventElapsedTime(kernel)", status);
+        }
+        const double kernel_ns = static_cast<double>(kernel_ms) * 1000000.0;
+        if (!std::isfinite(kernel_ns)
+            || kernel_ns < 0.0
+            || kernel_ns > static_cast<double>(
+                std::numeric_limits<unsigned long long>::max()
+            )) {
+            cudaEventDestroy(kernel_stop_event);
+            cudaEventDestroy(kernel_start_event);
+            cudaFree(device_checksum);
+            std::fprintf(stderr, "mesh-cuda-smoke: invalid CUDA event timing\n");
+            return 3;
+        }
+        kernel_device_ns = static_cast<unsigned long long>(kernel_ns + 0.5);
+    }
+
     unsigned long long checksum = 0;
+    const auto transfer_started = SteadyClock::now();
     status = cudaMemcpy(
         &checksum,
         device_checksum,
         sizeof(unsigned long long),
         cudaMemcpyDeviceToHost
     );
+    const auto transfer_finished = SteadyClock::now();
     if (status != cudaSuccess) {
+        if (timing_v2) {
+            cudaEventDestroy(kernel_stop_event);
+            cudaEventDestroy(kernel_start_event);
+        }
         cudaFree(device_checksum);
         return fail_cuda("cudaMemcpy", status);
     }
 
+    const auto teardown_started = SteadyClock::now();
     status = cudaFree(device_checksum);
     if (status != cudaSuccess) {
+        if (timing_v2) {
+            cudaEventDestroy(kernel_stop_event);
+            cudaEventDestroy(kernel_start_event);
+        }
         return fail_cuda("cudaFree", status);
     }
+    if (timing_v2) {
+        status = cudaEventDestroy(kernel_stop_event);
+        if (status != cudaSuccess) {
+            cudaEventDestroy(kernel_start_event);
+            return fail_cuda("cudaEventDestroy(kernel-stop)", status);
+        }
+        status = cudaEventDestroy(kernel_start_event);
+        if (status != cudaSuccess) {
+            return fail_cuda("cudaEventDestroy(kernel-start)", status);
+        }
+    }
+    const auto teardown_finished = SteadyClock::now();
+    const auto worker_finished = teardown_finished;
 
-    if (saw_start) {
+    if (timing_v2) {
+        const unsigned long long setup_host_ns =
+            host_elapsed_ns(setup_started, setup_finished);
+        const unsigned long long transfer_host_ns =
+            host_elapsed_ns(transfer_started, transfer_finished);
+        const unsigned long long teardown_host_ns =
+            host_elapsed_ns(teardown_started, teardown_finished);
+        const unsigned long long worker_total_ns =
+            host_elapsed_ns(worker_started, worker_finished);
+
+        std::printf(
+            "qsol.mesh.cuda-smoke-worker.v2\titems=%llu\tchecksum=%016llx\tblocks=%u\tthreads_per_block=%u\tdevice=%d\tcompute_major=%d\tcompute_minor=%d\tcuda_runtime=%d\tcuda_driver=%d\tsetup_host_ns=%llu\tkernel_device_ns=%llu\ttransfer_host_ns=%llu\tteardown_host_ns=%llu\tworker_total_ns=%llu\n",
+            items,
+            checksum,
+            blocks,
+            kThreadsPerBlock,
+            device_ordinal,
+            properties.major,
+            properties.minor,
+            runtime_version,
+            driver_version,
+            setup_host_ns,
+            kernel_device_ns,
+            transfer_host_ns,
+            teardown_host_ns,
+            worker_total_ns
+        );
+    } else if (saw_start) {
         std::printf(
             "qsol.mesh.cuda-smoke-range-worker.v1\tstart=%llu\titems=%llu\tchecksum=%016llx\tblocks=%u\tthreads_per_block=%u\tdevice=%d\tcompute_major=%d\tcompute_minor=%d\tcuda_runtime=%d\tcuda_driver=%d\n",
             start,

@@ -56,6 +56,7 @@
 - [ ] Measure CPU/GPU service and setup/transfer costs.
   - [x] Real host CPU smoke service measurements with explicit cost scope.
   - [x] Versioned setup/service/transfer cost evidence fields.
+  - [x] Optional CUDA timing receipt v2 separates helper latency, setup, kernel service, D2H transfer, teardown, and scalar verification with explicit clock scopes.
   - [ ] CUDA executor timing/setup/transfer measurement has not yet been integrated into the calibrator.
 - [x] Topology-derived bounded candidate plans.
 - [x] Deterministic search and full-work confirmation.

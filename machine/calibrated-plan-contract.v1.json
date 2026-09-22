@@ -28,7 +28,9 @@
     "cpu_smoke_setup_ns": "zero-because-not-separately-modeled",
     "cpu_smoke_transfer_ns": "zero-because-no-cross-domain-transfer",
     "cpu_smoke_nonzero_setup_or_transfer_is_admissible": false,
-    "accelerator_measurement_status": "pending-real-accelerator-executor"
+    "accelerator_measurement_status": "available-via-qsol.mesh.cuda-smoke-receipt.v2-not-yet-admitted",
+    "accelerator_timing_receipt_schema": "qsol.mesh.cuda-smoke-receipt.v2",
+    "accelerator_measurements_admitted_by_planner": false
   },
   "oracle_contract": {
     "kind": "mesh-smoke-v1-scalar-reference-equality",
@@ -72,5 +74,5 @@
     "must_record_near_tie_margin": true,
     "serializer_must_revalidate_plan_before_verified_status": true
   },
-  "claim_boundary": "Host-specific measured planning evidence only. No hardware model name is performance authority. CPU smoke measurements are real host measurements; accelerator service/setup/transfer evidence remains unavailable until a real accelerator executor supplies observed measurements."
+  "claim_boundary": "Host-specific measured planning evidence only. No hardware model name is performance authority. CPU smoke measurements are admitted by the current planner. Separated CUDA timing evidence is available through qsol.mesh.cuda-smoke-receipt.v2, but the planner does not yet admit or compare those accelerator measurements."
 }

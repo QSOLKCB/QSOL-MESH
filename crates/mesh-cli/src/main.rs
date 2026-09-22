@@ -1,7 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use qsol_mesh_core::{
-    accelerator::{cuda_smoke_receipt_json, run_cuda_smoke},
+    accelerator::{
+        cuda_smoke_receipt_json, cuda_smoke_timing_receipt_json, run_cuda_smoke,
+        run_cuda_smoke_timed,
+    },
     available_workers,
     concurrent_split::{concurrent_split_receipt_json, run_concurrent_smoke_partition},
     memory::{build_streaming_memory_plan, memory_plan_receipt_json, MemoryPlanRequest},
@@ -16,7 +19,7 @@ use qsol_mesh_core::{
 use std::{env, process::ExitCode};
 
 fn usage() -> &'static str {
-    "Usage:\n  mesh inspect [--json]\n  mesh run smoke [--items N] [--workers N] [--json]\n  mesh verify smoke [--items N] [--workers N] [--json]\n  mesh run smoke-cuda [--items N] [--device N] [--json]\n  mesh verify smoke-cuda [--items N] [--device N] [--json]\n  mesh run smoke-static --cpu-items N [--items N] [--cpu-workers N] [--device N] [--json]\n  mesh verify smoke-static --cpu-items N [--items N] [--cpu-workers N] [--device N] [--json]\n  mesh run smoke-concurrent --cpu-items N [--items N] [--cpu-workers N] [--device N] [--json]\n  mesh verify smoke-concurrent --cpu-items N [--items N] [--cpu-workers N] [--device N] [--json]\n  mesh calibrate smoke [--calibration-items N] [--full-items N] [--repeats N] [--near-tie-bps N] [--json]\n  mesh plan memory [--total-bytes N] [--chunk-bytes N] [--pinned-limit-bytes N] [--accelerator-limit-bytes N] [--partial-bytes N] [--json]\n  mesh <calibrate|plan|receipt> [--json]\n"
+    "Usage:\n  mesh inspect [--json]\n  mesh run smoke [--items N] [--workers N] [--json]\n  mesh verify smoke [--items N] [--workers N] [--json]\n  mesh run smoke-cuda [--items N] [--device N] [--timing] [--json]\n  mesh verify smoke-cuda [--items N] [--device N] [--timing] [--json]\n  mesh run smoke-static --cpu-items N [--items N] [--cpu-workers N] [--device N] [--json]\n  mesh verify smoke-static --cpu-items N [--items N] [--cpu-workers N] [--device N] [--json]\n  mesh run smoke-concurrent --cpu-items N [--items N] [--cpu-workers N] [--device N] [--json]\n  mesh verify smoke-concurrent --cpu-items N [--items N] [--cpu-workers N] [--device N] [--json]\n  mesh calibrate smoke [--calibration-items N] [--full-items N] [--repeats N] [--near-tie-bps N] [--json]\n  mesh plan memory [--total-bytes N] [--chunk-bytes N] [--pinned-limit-bytes N] [--accelerator-limit-bytes N] [--partial-bytes N] [--json]\n  mesh <calibrate|plan|receipt> [--json]\n"
 }
 
 fn parse_smoke(args: &[String]) -> Result<(u64, usize, bool), String> {
@@ -46,12 +49,14 @@ fn parse_smoke(args: &[String]) -> Result<(u64, usize, bool), String> {
     Ok((items, workers, json))
 }
 
-fn parse_cuda_smoke(args: &[String]) -> Result<(u64, u32, bool), String> {
+fn parse_cuda_smoke(args: &[String]) -> Result<(u64, u32, bool, bool), String> {
     let mut items = 100_000_u64;
     let mut device = 0_u32;
+    let mut timing = false;
     let mut json = false;
     let mut seen_items = false;
     let mut seen_device = false;
+    let mut seen_timing = false;
     let mut seen_json = false;
 
     let mut i = 0;
@@ -63,6 +68,15 @@ fn parse_cuda_smoke(args: &[String]) -> Result<(u64, u32, bool), String> {
             }
             seen_json = true;
             json = true;
+            i += 1;
+            continue;
+        }
+        if flag == "--timing" {
+            if seen_timing {
+                return Err("--timing may be specified only once".into());
+            }
+            seen_timing = true;
+            timing = true;
             i += 1;
             continue;
         }
@@ -97,7 +111,7 @@ fn parse_cuda_smoke(args: &[String]) -> Result<(u64, u32, bool), String> {
         return Err("--items must be greater than zero".into());
     }
 
-    Ok((items, device, json))
+    Ok((items, device, timing, json))
 }
 fn parse_static_split(args: &[String]) -> Result<(StaticSplitRequest, bool), String> {
     let mut items = 100_000_u64;
@@ -396,23 +410,50 @@ fn print_smoke(command: Command, args: &[String]) -> Result<(), String> {
 }
 
 fn print_cuda_smoke(command: Command, args: &[String]) -> Result<(), String> {
-    let (items, device, json) = parse_cuda_smoke(args)?;
-    let run = run_cuda_smoke(items, device)?;
-    if json {
-        println!(
-            "{}",
-            cuda_smoke_receipt_json(command.as_str(), run).map_err(str::to_owned)?
-        );
+    let (items, device, timing, json) = parse_cuda_smoke(args)?;
+    if timing {
+        let run = run_cuda_smoke_timed(items, device)?;
+        if json {
+            println!(
+                "{}",
+                cuda_smoke_timing_receipt_json(command.as_str(), run).map_err(str::to_owned)?
+            );
+        } else {
+            let observation = run.observation();
+            println!(
+                "{} backend=nvidia-cuda device={} blocks={} threads_per_block={} checksum={:016x} timing=true launcher_total_ns={} worker_total_ns={} setup_host_ns={} kernel_device_ns={} transfer_host_ns={} teardown_host_ns={} verification_ns={} verified=true",
+                SMOKE_WORKLOAD_ID,
+                observation.device_ordinal,
+                observation.blocks,
+                observation.threads_per_block,
+                observation.checksum,
+                run.launcher_total_ns(),
+                observation.worker_total_ns,
+                observation.setup_host_ns,
+                observation.kernel_device_ns,
+                observation.transfer_host_ns,
+                observation.teardown_host_ns,
+                run.verification_ns()
+            );
+        }
     } else {
-        let observation = run.observation();
-        println!(
-            "{} backend=nvidia-cuda device={} blocks={} threads_per_block={} checksum={:016x} verified=true",
-            SMOKE_WORKLOAD_ID,
-            observation.device_ordinal,
-            observation.blocks,
-            observation.threads_per_block,
-            observation.checksum
-        );
+        let run = run_cuda_smoke(items, device)?;
+        if json {
+            println!(
+                "{}",
+                cuda_smoke_receipt_json(command.as_str(), run).map_err(str::to_owned)?
+            );
+        } else {
+            let observation = run.observation();
+            println!(
+                "{} backend=nvidia-cuda device={} blocks={} threads_per_block={} checksum={:016x} verified=true",
+                SMOKE_WORKLOAD_ID,
+                observation.device_ordinal,
+                observation.blocks,
+                observation.threads_per_block,
+                observation.checksum
+            );
+        }
     }
     Ok(())
 }

@@ -52,7 +52,7 @@ mesh run smoke-static \
 
 The geometry is explicit and immutable for the run: CPU executes `[0,cpu_items)`, CUDA executes `[cpu_items,items)`. Both ranges are verified independently against scalar range oracles, then reduced in partition order and checked against the full scalar oracle.
 
-This stage is deliberately **sequential**: CPU runs first, CUDA second, and receipts state `"concurrent":false` and `"adaptive":false`. Concurrent CPU/GPU execution remains the next roadmap rung.
+This stage is deliberately **sequential**: CPU runs first, CUDA second, and receipts state `"concurrent":false` and `"adaptive":false`. The concurrent-dispatch path is documented in the following section.
 
 See `STATIC-SPLIT.md` and `machine/static-split-contract.v1.json`.
 
@@ -130,6 +130,12 @@ mesh calibrate smoke \
 
 The planner keeps the canonical one-worker plan unless another measured candidate beats it by more than the configured margin. Any noncanonical calibration winner must then repeat that win against canonical on the full requested work before promotion. Otherwise canonical is retained or restored.
 
-Current calibrated planning remains CPU-only even though the smoke CUDA executor now exists. Accelerator `service_ns`, `setup_ns`, and `transfer_ns` measurements have not yet been integrated into the calibrator, so accelerator cost evidence remains unavailable rather than synthesized.
+Current calibrated planning remains CPU-only. The CUDA executor now has an opt-in separated timing receipt:
+
+```sh
+mesh verify smoke-cuda --items 100000 --device 0 --timing --json
+```
+
+That v2 receipt separates canonical-helper wall latency, CUDA-worker setup, CUDA-event kernel service, synchronous D2H transfer, teardown, and independent scalar verification. Each field records its clock scope, and the receipt explicitly forbids a cross-clock additive total. These measurements are **not yet admitted by the calibrated planner**; accelerator placement remains unchanged until the next roadmap rung.
 
 See `CALIBRATED-PLANNING.md` and `machine/calibrated-plan-contract.v1.json`.

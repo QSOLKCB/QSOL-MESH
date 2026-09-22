@@ -64,6 +64,18 @@ mesh verify smoke-cuda \
   --json
 ```
 
+Separated timing evidence is opt-in and versioned independently:
+
+```sh
+mesh verify smoke-cuda \
+  --items 100000 \
+  --device 0 \
+  --timing \
+  --json
+```
+
+Without `--timing`, the existing v1 worker protocol and v1 receipt remain unchanged. With `--timing`, Rust invokes the same canonical worker with `--timing-v2` and requires `qsol.mesh.cuda-smoke-worker.v2`, producing `qsol.mesh.cuda-smoke-receipt.v2`.
+
 There is no verified `--helper` override and `QSOL_MESH_CUDA_HELPER` is not consulted by the verified execution path.
 
 ## Admission boundary
@@ -95,6 +107,21 @@ Default GitHub CI has no retained CUDA execution evidence. CI validates:
 
 A real GPU execution receipt must come from a CUDA-capable host that actually runs the worker.
 
+## Timing evidence v2
+
+The timing path is deliberately measurement-only. It reports:
+
+- `launcher_total_ns` from Rust `std::time::Instant`, covering canonical helper launch through captured process exit/output;
+- `worker_total_ns`, `setup_host_ns`, `transfer_host_ns`, and `teardown_host_ns` from C++ `std::chrono::steady_clock`;
+- `kernel_device_ns` from CUDA events around the kernel on the default stream, read only after device synchronization;
+- `verification_ns` from Rust `std::time::Instant` around the independent scalar oracle only.
+
+The synchronous D2H copy targets a pageable host `u64`, so its duration is intentionally a host-clock transfer scope rather than a claim of pure device transfer time. The receipt records `cross_clock_additive_total:false`: host monotonic durations, CUDA event time, launcher wall time, and scalar-verification time are **not** collapsed into one synthetic total.
+
+The v2 parser is exact-shape and fail-closed. Missing, duplicated/misordered, negative, overflowed, or internally inconsistent timing values cannot mint a verified timing receipt. Receipt serialization recomputes the scalar oracle, revalidates timing consistency, and revalidates the canonical worker path.
+
+See `machine/nvidia-executor-timing-contract.v2.json`.
+
 ## Not implemented in this slice
 
 This executor deliberately does not yet claim:
@@ -104,7 +131,7 @@ This executor deliberately does not yet claim:
 - persistent accelerator pools;
 - pinned-host staging;
 - GALAXY GPU execution;
-- accelerator calibration timings;
+- admission of accelerator timing evidence into calibrated placement;
 - multi-GPU execution.
 
 Those are subsequent rungs after the single-device executor boundary is stable.
