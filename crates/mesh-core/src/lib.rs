@@ -4,6 +4,7 @@ pub mod accelerator;
 pub mod galaxy;
 pub mod memory;
 pub mod planner;
+pub mod static_split;
 
 use std::thread;
 
@@ -59,6 +60,16 @@ pub struct SmokeRun {
     pub reference: u64,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct SmokeRangeRun {
+    pub start: u64,
+    pub items: u64,
+    pub requested_workers: usize,
+    pub effective_workers: usize,
+    pub checksum: u64,
+    pub reference: u64,
+}
+
 pub fn available_workers() -> usize {
     thread::available_parallelism().map_or(1, |n| n.get())
 }
@@ -79,17 +90,30 @@ fn checksum_range(start: u64, end: u64) -> u64 {
     sum
 }
 
-pub fn smoke_reference(items: u64) -> Result<u64, &'static str> {
+fn checked_range_end(start: u64, items: u64) -> Result<u64, &'static str> {
     if items == 0 {
         return Err("items must be greater than zero");
     }
-    Ok(checksum_range(0, items))
+    start
+        .checked_add(items)
+        .ok_or("smoke logical range overflows u64")
 }
 
-pub fn run_smoke(items: u64, requested_workers: usize) -> Result<SmokeRun, &'static str> {
-    if items == 0 {
-        return Err("items must be greater than zero");
-    }
+pub fn smoke_reference_range(start: u64, items: u64) -> Result<u64, &'static str> {
+    let end = checked_range_end(start, items)?;
+    Ok(checksum_range(start, end))
+}
+
+pub fn smoke_reference(items: u64) -> Result<u64, &'static str> {
+    smoke_reference_range(0, items)
+}
+
+pub fn run_smoke_range(
+    start: u64,
+    items: u64,
+    requested_workers: usize,
+) -> Result<SmokeRangeRun, &'static str> {
+    let end = checked_range_end(start, items)?;
     if requested_workers == 0 {
         return Err("workers must be greater than zero");
     }
@@ -99,14 +123,17 @@ pub fn run_smoke(items: u64, requested_workers: usize) -> Result<SmokeRun, &'sta
     let extra = items % effective as u64;
 
     let partials = thread::scope(|scope| {
-        let mut start = 0_u64;
+        let mut next = start;
         let mut handles = Vec::with_capacity(effective);
         for worker in 0..effective {
             let len = base + u64::from((worker as u64) < extra);
-            let end = start + len;
-            handles.push(scope.spawn(move || checksum_range(start, end)));
-            start = end;
+            let worker_end = next
+                .checked_add(len)
+                .expect("validated smoke subrange must fit u64");
+            handles.push(scope.spawn(move || checksum_range(next, worker_end)));
+            next = worker_end;
         }
+        debug_assert_eq!(next, end);
         handles
             .into_iter()
             .map(|handle| handle.join().expect("smoke worker panicked"))
@@ -116,17 +143,29 @@ pub fn run_smoke(items: u64, requested_workers: usize) -> Result<SmokeRun, &'sta
     let checksum = partials
         .into_iter()
         .fold(0_u64, |sum, value| sum.wrapping_add(value));
-    let reference = smoke_reference(items)?;
+    let reference = smoke_reference_range(start, items)?;
     if checksum != reference {
-        return Err("parallel checksum does not match scalar reference");
+        return Err("parallel range checksum does not match scalar reference");
     }
 
-    Ok(SmokeRun {
+    Ok(SmokeRangeRun {
+        start,
         items,
         requested_workers,
         effective_workers: effective,
         checksum,
         reference,
+    })
+}
+
+pub fn run_smoke(items: u64, requested_workers: usize) -> Result<SmokeRun, &'static str> {
+    let range = run_smoke_range(0, items, requested_workers)?;
+    Ok(SmokeRun {
+        items: range.items,
+        requested_workers: range.requested_workers,
+        effective_workers: range.effective_workers,
+        checksum: range.checksum,
+        reference: range.reference,
     })
 }
 
@@ -149,6 +188,15 @@ mod tests {
     }
 
     #[test]
+    fn smoke_range_vectors_are_stable_and_recombine_exactly() {
+        let cpu = smoke_reference_range(0, 400).unwrap();
+        let cuda = smoke_reference_range(400, 600).unwrap();
+        assert_eq!(cpu, 0x6c9c_c32b_3b0b_5f89);
+        assert_eq!(cuda, 0x66eb_a516_d94f_e913);
+        assert_eq!(cpu.wrapping_add(cuda), smoke_reference(1_000).unwrap());
+    }
+
+    #[test]
     fn worker_counts_preserve_exact_result() {
         for workers in [1, 2, 3, 7, 32, 64] {
             let run = run_smoke(10_000, workers).unwrap();
@@ -158,13 +206,33 @@ mod tests {
     }
 
     #[test]
-    fn workers_are_bounded_by_work_items() {
-        assert_eq!(run_smoke(3, 99).unwrap().effective_workers, 3);
+    fn range_worker_counts_preserve_exact_result() {
+        for workers in [1, 2, 3, 7, 32, 64] {
+            let run = run_smoke_range(400, 600, workers).unwrap();
+            assert_eq!(run.checksum, 0x66eb_a516_d94f_e913);
+            assert_eq!(run.checksum, run.reference);
+        }
     }
 
     #[test]
-    fn invalid_zeroes_fail_closed() {
+    fn workers_are_bounded_by_work_items() {
+        assert_eq!(run_smoke(3, 99).unwrap().effective_workers, 3);
+        assert_eq!(run_smoke_range(7, 3, 99).unwrap().effective_workers, 3);
+    }
+
+    #[test]
+    fn invalid_zeroes_and_overflow_fail_closed() {
         assert!(run_smoke(0, 1).is_err());
         assert!(run_smoke(1, 0).is_err());
+        assert!(run_smoke_range(0, 0, 1).is_err());
+        assert!(run_smoke_range(0, 1, 0).is_err());
+        assert_eq!(
+            smoke_reference_range(u64::MAX, 1),
+            Err("smoke logical range overflows u64")
+        );
+        assert_eq!(
+            run_smoke_range(u64::MAX - 1, 2, 1),
+            Err("smoke logical range overflows u64")
+        );
     }
 }
