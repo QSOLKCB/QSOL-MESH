@@ -7,10 +7,7 @@
 //! workload's scalar oracle.
 
 use crate::{smoke_reference, SMOKE_WORKLOAD_ID};
-use std::{
-    path::Path,
-    process::Command as ProcessCommand,
-};
+use std::{path::Path, process::Command as ProcessCommand};
 
 pub const CUDA_WORKER_PROTOCOL: &str = "qsol.mesh.cuda-smoke-worker.v1";
 pub const CUDA_EXECUTOR_ID: &str = "qsol-mesh-cuda-smoke-v1";
@@ -248,10 +245,9 @@ mod tests {
     fn malformed_worker_protocol_fails_closed() {
         assert!(parse_cuda_worker_line("not-the-protocol").is_err());
         assert!(parse_cuda_worker_line(&(valid_line() + "\textra=1")).is_err());
-        assert!(parse_cuda_worker_line(&valid_line().replace(
-            "checksum=d3886842145b489c",
-            "checksum=1234"
-        ))
+        assert!(parse_cuda_worker_line(
+            &valid_line().replace("checksum=d3886842145b489c", "checksum=1234")
+        )
         .is_err());
     }
 
