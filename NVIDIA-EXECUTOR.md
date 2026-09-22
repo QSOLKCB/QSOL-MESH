@@ -126,3 +126,24 @@ A protocol line is evidence about what a process *said*, not proof that the proc
 The public verified launcher is `run_cuda_smoke(items, device)`. It invokes only the repository canonical build output at `target/mesh-cuda-smoke`. The lower-level path-taking launcher remains private to the accelerator module, and the CLI rejects `--helper` overrides before any process is launched. The environment variable `QSOL_MESH_CUDA_HELPER` is likewise ignored.
 
 This is a repository/application trust boundary, not cryptographic binary attestation: the local filesystem and build environment are explicitly outside this contract. The guarantee here is narrower and important—**a caller-selected executable cannot mint a verified CUDA physical-execution receipt merely by forging stdout.**
+
+
+## Working-directory independence
+
+The canonical verified worker is not resolved relative to the shell's current directory. At runtime, MESH canonicalizes its own executable path with `current_exe()`, finds the nearest `target` ancestor in that application tree, and resolves `mesh-cuda-smoke` beneath that directory.
+
+For a normal repository debug build:
+
+```text
+/workspace/QSOL-MESH/target/debug/mesh
+```
+
+the verified worker resolves to:
+
+```text
+/workspace/QSOL-MESH/target/mesh-cuda-smoke
+```
+
+Changing the shell working directory to a location containing its own `target/mesh-cuda-smoke` therefore cannot redirect verified execution. The resolved absolute worker path is stored inside the opaque `CudaSmokeRun` token and revalidated again before receipt serialization.
+
+If the running MESH executable is outside a supported application tree containing a `target` ancestor, CUDA execution fails closed rather than falling back to the caller's working directory.
