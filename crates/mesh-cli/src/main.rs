@@ -162,9 +162,7 @@ fn parse_static_split(args: &[String]) -> Result<(StaticSplitRequest, bool), Str
                     return Err("--device may be specified only once".into());
                 }
                 seen_device = true;
-                device_ordinal = value
-                    .parse::<u32>()
-                    .map_err(|_| "--device must be u32")?;
+                device_ordinal = value.parse::<u32>().map_err(|_| "--device must be u32")?;
             }
             other => return Err(format!("unsupported static split argument: {other}")),
         }
