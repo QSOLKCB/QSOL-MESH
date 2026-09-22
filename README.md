@@ -29,3 +29,24 @@ GALAXY remains the semantic authority. QSOL-MESH contains no copied GALAXY addre
 The adapter pins the frozen GALAXY v0.4.0 source identity and archived CPU oracle checksums. Static CPU-only, accelerator-only, and heterogeneous requested geometries are available as planning primitives, but requested accelerator placement is **not** execution evidence. Live partitioned GALAXY parity and GPU/heterogeneous baselines remain gated on a GALAXY-owned range entrypoint and the real Phase 1 accelerator executor.
 
 See `GALAXY-ADAPTER.md` and `machine/workloads/galaxy-v0.4.0.json`.
+
+
+## Phase 3 memory broker planning
+
+The memory broker now has an auditable planning core with explicit memory domains, allocation ownership/lifetimes, a topologically ordered transfer/event graph, bounded host-pinned and accelerator-local budgets, peak-live accounting, and a reusable stream/reduce/discard template.
+
+A plan can be emitted as a machine-readable evidence receipt:
+
+```sh
+mesh plan memory \
+  --total-bytes 1073741824 \
+  --chunk-bytes 67108864 \
+  --pinned-limit-bytes 67108864 \
+  --accelerator-limit-bytes 268435456 \
+  --partial-bytes 24 \
+  --json
+```
+
+This is **planning evidence only**. The plan hard-fails if it attempts to claim physical materialization. Real pinned host pages and persistent accelerator-local allocations remain backend-owned and are still gated on the real accelerator executor.
+
+See `MEMORY-BROKER.md` and `machine/memory-plan-contract.v1.json`.
