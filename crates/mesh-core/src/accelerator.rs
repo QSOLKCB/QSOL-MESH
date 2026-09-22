@@ -443,8 +443,10 @@ fn run_cuda_smoke_timed_with_helper(
         .arg("--timing-v2")
         .output()
         .map_err(|error| format!("CUDA timing helper launch failed: {error}"))?;
-    let launcher_total_ns =
-        elapsed_nanos_u64(launcher_started, "CUDA launcher timing overflows u64 nanoseconds")?;
+    let launcher_total_ns = elapsed_nanos_u64(
+        launcher_started,
+        "CUDA launcher timing overflows u64 nanoseconds",
+    )?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
@@ -506,10 +508,7 @@ pub fn run_cuda_smoke(items: u64, device_ordinal: u32) -> Result<CudaSmokeRun, S
     run_cuda_smoke_with_helper(&helper_path, items, device_ordinal)
 }
 
-pub fn run_cuda_smoke_timed(
-    items: u64,
-    device_ordinal: u32,
-) -> Result<CudaSmokeTimingRun, String> {
+pub fn run_cuda_smoke_timed(items: u64, device_ordinal: u32) -> Result<CudaSmokeTimingRun, String> {
     let helper_path = canonical_cuda_helper_path()?;
     run_cuda_smoke_timed_with_helper(&helper_path, items, device_ordinal)
 }
@@ -784,12 +783,10 @@ mod tests {
             &valid_timing_line().replace("setup_host_ns=100", "setup_host_ns=-1")
         )
         .is_err());
-        assert!(parse_cuda_timing_worker_line(
-            &valid_timing_line().replace(
-                "worker_total_ns=200",
-                "worker_total_ns=18446744073709551616"
-            )
-        )
+        assert!(parse_cuda_timing_worker_line(&valid_timing_line().replace(
+            "worker_total_ns=200",
+            "worker_total_ns=18446744073709551616"
+        ))
         .is_err());
 
         let inconsistent = parse_cuda_timing_worker_line(
