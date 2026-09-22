@@ -31,10 +31,16 @@
 
 ## Phase 3 — memory broker
 - [ ] Persistent accelerator allocation pool.
+  - [x] Persistent accelerator-local pool planning, lifetime, and reuse contract.
+  - [ ] Physical accelerator allocation requires the real accelerator executor.
 - [ ] Bounded pinned-host staging.
-- [ ] Explicit transfer/event graph.
-- [ ] Memory-plan receipts.
+  - [x] Bounded staging plan, peak-live enforcement, and reuse contract.
+  - [ ] Physical OS-backed pinned allocation remains backend-owned.
+- [x] Explicit transfer/event graph.
+- [x] Memory-plan receipts.
 - [ ] Stream/reduce/discard where permitted.
+  - [x] Constant-size reusable stream/reduce/discard planning template.
+  - [ ] Runtime execution remains gated on a physical backend.
 
 ## Phase 4 — calibrated planning
 - [ ] Measure CPU/GPU service and setup/transfer costs.

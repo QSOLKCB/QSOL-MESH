@@ -68,6 +68,50 @@ jobs:
           }:
               raise SystemExit("smoke receipt verification drift")
           PY
+          cargo run -q -p qsol-mesh-cli --locked -- plan memory --total-bytes 1000 --chunk-bytes 400 --pinned-limit-bytes 256 --accelerator-limit-bytes 300 --partial-bytes 24 --json > /tmp/mesh-memory-plan.json
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          receipt = json.loads(Path("/tmp/mesh-memory-plan.json").read_text())
+          evidence = json.loads(Path("machine/evidence-contract.v1.json").read_text())
+          contract = json.loads(Path("machine/memory-plan-contract.v1.json").read_text())
+          missing = set(evidence["receipt_required_sections"]) - set(receipt)
+          if missing:
+              raise SystemExit(f"memory plan receipt missing sections: {sorted(missing)}")
+          if receipt["schema"] != contract["receipt_contract"]["schema"]:
+              raise SystemExit("memory plan receipt schema drift")
+          if receipt["requested_configuration"] != {
+              "total_bytes": 1000,
+              "requested_chunk_bytes": 400,
+              "host_pinned_limit_bytes": 256,
+              "accelerator_limit_bytes": 300,
+              "partial_bytes": 24,
+          }:
+              raise SystemExit("memory plan requested configuration drift")
+          plan = receipt["memory_plan"]
+          if plan["effective_chunk_bytes"] != 256 or plan["chunk_count"] != 4:
+              raise SystemExit("memory plan chunk geometry drift")
+          if plan["peak_live_bytes"]["host-pinned"] != 256:
+              raise SystemExit("memory plan pinned peak drift")
+          if plan["peak_live_bytes"]["accelerator-local"] != 256:
+              raise SystemExit("memory plan accelerator peak drift")
+          if plan["physically_materialized"] is not False:
+              raise SystemExit("memory plan falsely claims physical materialization")
+          if receipt["effective_execution"] != {
+              "kind": "planning-only",
+              "executor": "none",
+              "physically_materialized": False,
+          }:
+              raise SystemExit("memory plan effective execution boundary drift")
+          if receipt["verification"] != {
+              "kind": "structural-memory-plan-validation",
+              "verified": True,
+          }:
+              raise SystemExit("memory plan structural verification drift")
+          if receipt["claim_boundary"] != "planning-only-not-physical-allocation-evidence":
+              raise SystemExit("memory plan claim boundary drift")
+          PY
           for command in calibrate plan receipt; do
             cargo run -q -p qsol-mesh-cli --locked -- "$command" --json | grep -q '"status":"not-implemented"'
           done

@@ -1,0 +1,62 @@
+{
+  "schema": "qsol.mesh.memory-plan-contract.v1",
+  "contract_version": "1.0.0",
+  "plan_identity": "mesh-memory-broker-v1",
+  "domains": [
+    "host-pageable",
+    "host-pinned",
+    "accelerator-local"
+  ],
+  "allocation_contract": {
+    "explicit_domain_required": true,
+    "explicit_byte_extent_required": true,
+    "explicit_lifetime_required": true,
+    "reused_across_chunks_must_be_explicit": true,
+    "zero_byte_allocations_allowed": false
+  },
+  "transfer_contract": {
+    "source_allocation_required": true,
+    "destination_allocation_required": true,
+    "event_binding_required": true,
+    "byte_extent_required": true,
+    "transfer_must_fit_both_allocations": true,
+    "transfer_must_occur_within_both_lifetimes": true,
+    "same_domain_transfer_is_not_modeled_as_cross_domain_transfer": true
+  },
+  "event_graph_contract": {
+    "events_must_be_topologically_ordered": true,
+    "dependencies_must_reference_earlier_events": true,
+    "dependency_ids_must_exist": true,
+    "dependency_ids_must_be_unique": true,
+    "event_ids_must_be_unique": true
+  },
+  "budget_contract": {
+    "host_pinned_peak_must_not_exceed_declared_limit": true,
+    "accelerator_local_peak_must_not_exceed_declared_limit": true,
+    "peak_live_memory_is_not_cumulative_allocation_traffic": true,
+    "effective_chunk_must_not_exceed_requested_chunk_or_declared_domain_limits": true
+  },
+  "strategy_contract": {
+    "kind": "stream-reduce-discard-template-v1",
+    "template_repeated_per_chunk": true,
+    "per_chunk_graph_materialization": false,
+    "reduce_event_required": true,
+    "discard_event_required": true,
+    "bounded_staging_reuse": true,
+    "accelerator_pool_reuse_planned": true
+  },
+  "receipt_contract": {
+    "schema": "qsol.mesh.memory-plan-receipt.v1",
+    "must_include_existing_evidence_sections": true,
+    "must_distinguish_requested_configuration_from_effective_plan": true,
+    "must_report_peak_live_bytes_by_domain": true,
+    "must_report_physical_materialization_state": true
+  },
+  "materialization_boundary": {
+    "planning_layer_may_claim_physical_materialization": false,
+    "host_pinned_materialization_status": "pending-backend-owned-pinned-allocation",
+    "accelerator_pool_materialization_status": "pending-real-accelerator-executor",
+    "requested_or_planned_memory_is_execution_evidence": false
+  },
+  "claim_boundary": "Memory ownership, lifetime, transfer/event geometry, bounded staging budgets, reusable accelerator-pool planning, and plan receipts only. No host pages are physically pinned and no accelerator memory is physically allocated by this layer."
+}
