@@ -491,7 +491,7 @@ for token in (
     '\\"concurrent_dispatch\\":true',
     '\\"kernel_overlap_measured\\":false',
     "partition-order-wrapping-u64",
-    "cpu-fallback",
+    "cpu_fallback",
     "run_cuda_smoke_range",
 ):
     if token not in concurrent_source:
