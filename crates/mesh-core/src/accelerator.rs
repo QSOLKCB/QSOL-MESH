@@ -211,7 +211,6 @@ fn validate_cuda_worker_observation(
     Ok(reference)
 }
 
-
 fn validate_cuda_range_worker_observation(
     requested_start: u64,
     requested_items: u64,
@@ -351,13 +350,9 @@ fn run_cuda_smoke_range_with_helper(
     let stdout = std::str::from_utf8(&output.stdout)
         .map_err(|_| "CUDA range helper stdout is not UTF-8".to_owned())?;
     let observation = parse_cuda_range_worker_line(stdout).map_err(str::to_owned)?;
-    let reference = validate_cuda_range_worker_observation(
-        start,
-        items,
-        device_ordinal,
-        observation,
-    )
-    .map_err(str::to_owned)?;
+    let reference =
+        validate_cuda_range_worker_observation(start, items, device_ordinal, observation)
+            .map_err(str::to_owned)?;
 
     Ok(CudaSmokeRangeRun {
         observation,
@@ -375,9 +370,7 @@ pub fn run_cuda_smoke_range(
     run_cuda_smoke_range_with_helper(&helper_path, start, items, device_ordinal)
 }
 
-pub(crate) fn validate_cuda_smoke_range_run(
-    run: &CudaSmokeRangeRun,
-) -> Result<(), &'static str> {
+pub(crate) fn validate_cuda_smoke_range_run(run: &CudaSmokeRangeRun) -> Result<(), &'static str> {
     let reference = validate_cuda_range_worker_observation(
         run.observation.start,
         run.observation.items,
@@ -558,8 +551,7 @@ mod tests {
     #[test]
     fn range_worker_observation_must_match_request_and_oracle() {
         let observation = parse_cuda_range_worker_line(&valid_range_line()).unwrap();
-        let reference =
-            validate_cuda_range_worker_observation(400, 600, 0, observation).unwrap();
+        let reference = validate_cuda_range_worker_observation(400, 600, 0, observation).unwrap();
         assert_eq!(reference, 0x66eb_a516_d94f_e913);
 
         assert_eq!(
