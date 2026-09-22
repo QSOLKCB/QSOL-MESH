@@ -44,9 +44,12 @@
 
 ## Phase 4 — calibrated planning
 - [ ] Measure CPU/GPU service and setup/transfer costs.
-- [ ] Topology-derived bounded candidate plans.
-- [ ] Deterministic search and full-work confirmation.
-- [ ] Keep canonical on near ties.
+  - [x] Real host CPU smoke service measurements with explicit cost scope.
+  - [x] Versioned setup/service/transfer cost evidence fields.
+  - [ ] Accelerator setup/service/transfer measurement requires the real accelerator executor.
+- [x] Topology-derived bounded candidate plans.
+- [x] Deterministic search and full-work confirmation.
+- [x] Keep canonical on near ties.
 
 ## Phase 5 — adaptive heterogeneous runtime
 Deferred: dynamic work stealing, NUMA placement, multi-GPU, peer memory, managed-memory experiments, phase-sensitive replanning, persistent calibration cache.
