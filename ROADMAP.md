@@ -19,7 +19,11 @@
   - [x] Caller-fixed contiguous CPU prefix + CUDA suffix with range-native execution.
   - [x] Per-partition range-oracle verification and full scalar-oracle reduction.
   - [ ] Retained static heterogeneous execution receipt from a CUDA-capable host.
-- [ ] Concurrent execution.
+- [x] Concurrent execution.
+  - [x] CPU range task is spawned before canonical CUDA range dispatch and joined only after CUDA returns.
+  - [x] Deterministic CPU→CUDA reduction remains independent of completion order.
+  - [ ] Retained concurrent heterogeneous execution receipt from a CUDA-capable host.
+  - [ ] Kernel-level overlap measurement remains outside this bring-up rung.
 - [x] Deterministic reduction independent of completion order.
 - [x] Canonical parity and receipt.
 - [x] No adaptive scheduling.
