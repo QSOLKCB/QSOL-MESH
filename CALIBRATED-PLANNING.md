@@ -62,3 +62,18 @@ The receipt is `qsol.mesh.calibrated-plan-receipt.v1` and records the observed t
 Accelerator and heterogeneous candidates are admissible only after an accelerator is observed and measured evidence is available. The current repository still has no real accelerator executor, so Phase 4 does not fabricate GPU service/setup/transfer measurements.
 
 This means the planner machinery is ready for accelerator evidence while current executable calibration remains CPU-only.
+
+
+## Receipt integrity hardening
+
+Calibrated-plan receipts keep three identities/configuration layers distinct:
+
+- `source_identity.plan_identity = mesh-calibration-smoke-v1` identifies the planner/procedure;
+- `workload_identity.workload_id = mesh-smoke-v1` identifies the workload actually executed;
+- `requested_configuration.repeats` records the requested measurement repetition count.
+
+Every cost observation records `effective_cpu_workers` separately from the candidate's requested worker count. This captures clamping such as an eight-worker candidate measured on only one work item.
+
+For CPU smoke observations, `setup_ns` and `transfer_ns` must remain zero because setup is already inside the service measurement and the workload performs no cross-domain transfer.
+
+The serializer revalidates the complete public `CalibratedPlan` before emitting a receipt with `verification.verified = true`. Extra confirmation observations are rejected, and every retained confirmation must preserve canonical checksum parity.
