@@ -7,11 +7,9 @@
 
 pub const GALAXY_ADAPTER_SCHEMA: &str = "qsol.mesh.galaxy-adapter.v1";
 pub const GALAXY_WORKLOAD_ID: &str = "galaxy-v0.4.0-bam-lut-q30";
-pub const GALAXY_FROZEN_RELEASE_COMMIT: &str =
-    "6f17a734b9241359d36a9bf3d208b8527a456327";
+pub const GALAXY_FROZEN_RELEASE_COMMIT: &str = "6f17a734b9241359d36a9bf3d208b8527a456327";
 pub const GALAXY_CPU_RUNTIME_BLOB: &str = "b12220565f6059482f706d46db1d9d2c29a9cc82";
-pub const GALAXY_ARCHIVED_CPU_EVIDENCE_COMMIT: &str =
-    "b9e61d20d0fe0fa99f302a2ed13aa1215a60c5f3";
+pub const GALAXY_ARCHIVED_CPU_EVIDENCE_COMMIT: &str = "b9e61d20d0fe0fa99f302a2ed13aa1215a60c5f3";
 pub const GALAXY_ARCHIVED_BAM_LUT_CHECKSUM: u64 = 0x8d6f_07bd_77e2_fc16;
 pub const GALAXY_ARCHIVED_FLOAT_CHECKSUM: u64 = 0xadf6_d6e3_0d3a_d26d;
 
