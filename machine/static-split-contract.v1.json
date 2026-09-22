@@ -1,0 +1,65 @@
+{
+  "schema": "qsol.mesh.static-split-contract.v1",
+  "contract_version": "1.0.0",
+  "split_id": "mesh-smoke-static-cpu-cuda-v1",
+  "workload_identity": "mesh-smoke-v1",
+  "cpu_executor": "qsol-mesh-cpu-smoke-v1",
+  "cuda_executor": "qsol-mesh-cuda-smoke-v1",
+  "cuda_range_worker_protocol": "qsol.mesh.cuda-smoke-range-worker.v1",
+  "partition_contract": {
+    "kind": "caller-fixed-contiguous-prefix-suffix-v1",
+    "caller_supplies_cpu_items": true,
+    "cpu_range": "[0,cpu_items)",
+    "cuda_range": "[cpu_items,items)",
+    "two_nonempty_partitions_required": true,
+    "complete_cover_required": true,
+    "overlap_allowed": false,
+    "adaptive_repartitioning": false,
+    "hardware_name_may_choose_split": false
+  },
+  "execution_contract": {
+    "execution_order": [
+      "cpu",
+      "nvidia-cuda"
+    ],
+    "concurrent": false,
+    "dynamic_work_stealing": false,
+    "cpu_fallback_on_cuda_failure": false,
+    "cuda_range_must_use_canonical_worker": true,
+    "each_partition_requires_its_own_range_oracle": true,
+    "full_reduction_requires_scalar_oracle": true
+  },
+  "reduction_contract": {
+    "kind": "partition-order-wrapping-u64",
+    "order": [
+      "cpu",
+      "nvidia-cuda"
+    ],
+    "completion_order_may_change_reduction_order": false
+  },
+  "memory_contract": {
+    "cpu_domain": "host-pageable",
+    "cuda_domain": "accelerator-local",
+    "per_item_materialization": false,
+    "accelerator_checksum_buffer_bytes": 8,
+    "device_to_host_result_bytes": 8
+  },
+  "receipt_contract": {
+    "schema": "qsol.mesh.static-split-receipt.v1",
+    "must_include_existing_evidence_sections": true,
+    "must_record_requested_fixed_split": true,
+    "must_record_cpu_effective_workers": true,
+    "must_record_cuda_effective_launch_geometry": true,
+    "must_record_concurrent_false": true,
+    "must_record_adaptive_false": true,
+    "must_record_partition_range_oracles": true,
+    "must_record_full_scalar_oracle": true
+  },
+  "ci_boundary": {
+    "default_github_runner_has_cuda_execution_evidence": false,
+    "ci_may_validate_partition_geometry_and_fail_closed_behavior": true,
+    "ci_may_claim_static_heterogeneous_execution_without_cuda_capable_runner": false
+  },
+  "evidence_status": "implementation-complete-retained-cuda-host-static-split-receipt-pending",
+  "claim_boundary": "Static CPU/CUDA partition bring-up only. The caller fixes one contiguous CPU prefix and one contiguous CUDA suffix. Execution is sequential, non-adaptive, exact, fail-closed, and not performance evidence."
+}
