@@ -61,9 +61,7 @@ fn parse_cuda_smoke(args: &[String]) -> Result<(u64, u32, bool), String> {
             continue;
         }
         if flag == "--helper" {
-            return Err(
-                "--helper overrides are not admitted for verified CUDA execution".into(),
-            );
+            return Err("--helper overrides are not admitted for verified CUDA execution".into());
         }
 
         let value = args
