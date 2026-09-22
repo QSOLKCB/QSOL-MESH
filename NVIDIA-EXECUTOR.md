@@ -47,7 +47,7 @@ The default output is:
 target/mesh-cuda-smoke
 ```
 
-An alternate output path may be passed as the first build-script argument.
+The verified worker is intentionally built only at `target/mesh-cuda-smoke`. Alternate output paths are rejected by the build script because caller-selected executables are not allowed to mint verified physical-execution claims.
 
 ## Run
 
@@ -55,17 +55,16 @@ An alternate output path may be passed as the first build-script argument.
 mesh run smoke-cuda --items 100000 --device 0 --json
 ```
 
-or explicitly:
+and:
 
 ```sh
 mesh verify smoke-cuda \
   --items 100000 \
   --device 0 \
-  --helper target/mesh-cuda-smoke \
   --json
 ```
 
-`QSOL_MESH_CUDA_HELPER` can set the default helper path.
+There is no verified `--helper` override and `QSOL_MESH_CUDA_HELPER` is not consulted by the verified execution path.
 
 ## Admission boundary
 
@@ -118,3 +117,12 @@ The worker protocol permits either no line terminator, one LF, or one CRLF after
 A verified `CudaSmokeRun` is an opaque launcher-issued value. Its provenance fields are private, and raw observation validation is internal to the accelerator module. External callers can inspect a launched run through read-only accessors, but cannot construct a receipt-capable run from a hand-built observation.
 
 The CUDA logical-ID loop is also safe at the full admitted `u64` workload domain. After processing an ID, the kernel compares the remaining distance with the stride before incrementing. It never performs an `id += stride` that can wrap through `ULLONG_MAX` and revisit earlier IDs.
+
+
+## Canonical worker provenance
+
+A protocol line is evidence about what a process *said*, not proof that the process executed CUDA. Therefore arbitrary executables cannot enter the verified execution path even if they print a byte-for-byte valid worker record and the correct checksum.
+
+The public verified launcher is `run_cuda_smoke(items, device)`. It invokes only the repository canonical build output at `target/mesh-cuda-smoke`. The lower-level path-taking launcher remains private to the accelerator module, and the CLI rejects `--helper` overrides before any process is launched. The environment variable `QSOL_MESH_CUDA_HELPER` is likewise ignored.
+
+This is a repository/application trust boundary, not cryptographic binary attestation: the local filesystem and build environment are explicitly outside this contract. The guarantee here is narrower and important—**a caller-selected executable cannot mint a verified CUDA physical-execution receipt merely by forging stdout.**
