@@ -1,0 +1,71 @@
+{
+  "schema": "qsol.mesh.galaxy-adapter.v1",
+  "workload_id": "galaxy-v0.4.0-bam-lut-q30",
+  "workload_contract_version": "1.0.0",
+  "upstream_authority": {
+    "repository": "QSOLKCB/GALAXY",
+    "frozen_release": "v0.4.0",
+    "frozen_release_commit": "6f17a734b9241359d36a9bf3d208b8527a456327",
+    "cpu_runtime_blob_sha": "b12220565f6059482f706d46db1d9d2c29a9cc82",
+    "source_copy_into_mesh": false,
+    "mesh_may_implement_galaxy_particle_semantics": false
+  },
+  "logical_domain": {
+    "kind": "u64-count-with-half-open-logical-id-ranges",
+    "minimum_items": 1,
+    "maximum_items": "18446744073709551615"
+  },
+  "partition_contract": {
+    "kind": "contiguous-complete-cover",
+    "empty_partitions": false,
+    "executor_local_regeneration": true,
+    "mesh_generates_regeneration_requests_only": true,
+    "completion_order_may_change_commit_order": false
+  },
+  "partial_result_contract": {
+    "kind": "range-bound-wrapping-u64",
+    "fields": ["range_start", "range_end", "checksum"],
+    "semantic_payload_words": 3
+  },
+  "reduction_contract": {
+    "kind": "range-order-wrapping-u64",
+    "sort_by": "range_start",
+    "require_gap_free": true,
+    "require_overlap_free": true,
+    "require_full_cover": true
+  },
+  "verification_contract": {
+    "kind": "exact-upstream-oracle-equality",
+    "fail_closed": true,
+    "archived_cpu_oracle": {
+      "evidence_commit": "b9e61d20d0fe0fa99f302a2ed13aa1215a60c5f3",
+      "logical_population": "18446744073709551615",
+      "resident_particles": 8388608,
+      "frames": 8,
+      "seed": 303,
+      "bam_lut_checksum": "8d6f07bd77e2fc16",
+      "float_checksum": "adf6d6e30d3ad26d"
+    },
+    "live_partitioned_oracle_status": "pending-galaxy-owned-range-entrypoint"
+  },
+  "exactness_contract": {
+    "kind": "bit-exact-u64-reduction-and-oracle",
+    "tolerance": 0
+  },
+  "memory_contract": {
+    "mesh_materializes_logical_population": false,
+    "executor_regenerates_range_locally": true,
+    "mesh_partial_state": "O(partitions)"
+  },
+  "side_effect_contract": {
+    "kind": "none"
+  },
+  "baseline_contract": {
+    "requested_plan_kinds": ["cpu-only", "accelerator-only", "heterogeneous-static"],
+    "requested_plan_is_execution_evidence": false,
+    "cpu_only_archived_evidence_available": true,
+    "accelerator_execution_evidence_status": "pending-real-accelerator-executor",
+    "heterogeneous_execution_evidence_status": "pending-real-accelerator-executor"
+  },
+  "claim_boundary": "Phase-2 adapter geometry, compact reduction, and archived-oracle binding only. MESH does not copy GALAXY particle/address/physics/projection semantics. Requested accelerator plans are not evidence that an accelerator executed."
+}
