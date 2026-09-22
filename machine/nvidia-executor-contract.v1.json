@@ -17,7 +17,11 @@
     "single_exact_protocol_line_required": true,
     "protocol_may_have_at_most_one_line_terminator": true,
     "verified_run_provenance_must_be_launcher_issued": true,
-    "logical_id_iteration_must_not_wrap_u64": true
+    "logical_id_iteration_must_not_wrap_u64": true,
+    "verified_worker_path": "target/mesh-cuda-smoke",
+    "verified_worker_override_allowed": false,
+    "verified_worker_environment_override_allowed": false,
+    "arbitrary_helper_stdout_may_issue_verified_receipt": false
   },
   "observation_contract": {
     "device_ordinal_required": true,
@@ -33,17 +37,24 @@
     "worker_checksum_must_equal_scalar_reference": true,
     "verified_receipt_requires_oracle_pass": true
   },
+  "build_contract": {
+    "source": "accelerators/cuda/mesh_smoke_cuda.cu",
+    "build_script": "scripts/build-cuda-helper.sh",
+    "compiler": "nvcc",
+    "verified_output": "target/mesh-cuda-smoke",
+    "alternate_verified_output_allowed": false
+  },
   "memory_contract": {
     "accelerator_checksum_buffer_bytes": 8,
     "per_item_device_materialization": false,
     "persistent_accelerator_pool": false,
     "pinned_host_staging": false
   },
-  "build_contract": {
-    "source": "accelerators/cuda/mesh_smoke_cuda.cu",
-    "build_script": "scripts/build-cuda-helper.sh",
-    "compiler": "nvcc",
-    "default_output": "target/mesh-cuda-smoke"
+  "trust_boundary": {
+    "caller_selected_executables_are_execution_evidence": false,
+    "repository_canonical_build_output_is_the_only_verified_worker_path": true,
+    "local_filesystem_and_build_environment_are_outside_this_contract": true,
+    "canonical_path_is_not_cryptographic_binary_attestation": true
   },
   "ci_boundary": {
     "default_github_runner_has_cuda_execution_evidence": false,
@@ -51,5 +62,5 @@
     "ci_may_claim_gpu_execution_without_cuda_capable_runner": false
   },
   "evidence_status": "runtime-only-until-cuda-capable-host-receipt-is-retained",
-  "claim_boundary": "Experimental single-device NVIDIA CUDA execution for mesh-smoke-v1. Effective execution is admitted only from a successful CUDA helper protocol observation plus independent scalar-oracle equality. Helper-reported topology is not independently attested, and this is not performance evidence."
+  "claim_boundary": "Experimental single-device NVIDIA CUDA execution for mesh-smoke-v1. Verified physical-execution claims are admitted only through the repository canonical worker path, after successful worker execution, strict protocol validation, and independent scalar-oracle equality. Caller-selected executables cannot mint verified CUDA receipts. Helper-reported topology is not independently attested, and this is not performance evidence."
 }
