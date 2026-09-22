@@ -50,16 +50,68 @@ for command in mesh["cli_commands"]:
     if f'"{command}"' not in source:
         raise SystemExit(f"CLI contract command missing: {command}")
 
-workload = json.loads((MACHINE / "workloads/smoke-v1.json").read_text(encoding="utf-8"))
 required = set(loaded["workload-contract.v1.json"]["required_fields"])
-missing = required - set(workload)
-if missing:
-    raise SystemExit(f"smoke workload missing required fields: {sorted(missing)}")
-if workload["workload_id"] != "mesh-smoke-v1":
+workloads = {}
+for path in sorted((MACHINE / "workloads").glob("*.json")):
+    workload = json.loads(path.read_text(encoding="utf-8"))
+    missing = required - set(workload)
+    if missing:
+        raise SystemExit(f"{path.name} missing required fields: {sorted(missing)}")
+    workloads[path.name] = workload
+
+smoke = workloads["smoke-v1.json"]
+if smoke["workload_id"] != "mesh-smoke-v1":
     raise SystemExit("unexpected smoke workload identity")
-if workload["reduction_contract"]["kind"] != "worker-index-order-wrapping-u64":
+if smoke["reduction_contract"]["kind"] != "worker-index-order-wrapping-u64":
     raise SystemExit("smoke reduction contract drift")
-if workload["verification_contract"] != {"kind":"scalar-reference-equality","fail_closed":True}:
+if smoke["verification_contract"] != {"kind":"scalar-reference-equality","fail_closed":True}:
     raise SystemExit("smoke verification contract drift")
+
+galaxy = workloads["galaxy-v0.4.0.json"]
+if galaxy.get("schema") != "qsol.mesh.galaxy-adapter.v1":
+    raise SystemExit("GALAXY adapter schema drift")
+if galaxy["workload_id"] != "galaxy-v0.4.0-bam-lut-q30":
+    raise SystemExit("GALAXY adapter identity drift")
+
+upstream = galaxy["upstream_authority"]
+if upstream != {
+    "repository": "QSOLKCB/GALAXY",
+    "frozen_release": "v0.4.0",
+    "frozen_release_commit": "6f17a734b9241359d36a9bf3d208b8527a456327",
+    "cpu_runtime_blob_sha": "b12220565f6059482f706d46db1d9d2c29a9cc82",
+    "source_copy_into_mesh": False,
+    "mesh_may_implement_galaxy_particle_semantics": False,
+}:
+    raise SystemExit("GALAXY upstream authority drift")
+
+oracle = galaxy["verification_contract"]["archived_cpu_oracle"]
+if oracle != {
+    "evidence_commit": "b9e61d20d0fe0fa99f302a2ed13aa1215a60c5f3",
+    "logical_population": "18446744073709551615",
+    "resident_particles": 8388608,
+    "frames": 8,
+    "seed": 303,
+    "bam_lut_checksum": "8d6f07bd77e2fc16",
+    "float_checksum": "adf6d6e30d3ad26d",
+}:
+    raise SystemExit("GALAXY archived oracle drift")
+if galaxy["verification_contract"]["live_partitioned_oracle_status"] != "pending-galaxy-owned-range-entrypoint":
+    raise SystemExit("GALAXY live parity must remain capability-gated")
+if galaxy["baseline_contract"]["requested_plan_is_execution_evidence"] is not False:
+    raise SystemExit("requested GALAXY baseline plans must not imply execution evidence")
+
+galaxy_source = (ROOT / "crates/mesh-core/src/galaxy.rs").read_text(encoding="utf-8")
+for token in (
+    "6f17a734b9241359d36a9bf3d208b8527a456327",
+    "b12220565f6059482f706d46db1d9d2c29a9cc82",
+    "b9e61d20d0fe0fa99f302a2ed13aa1215a60c5f3",
+    "0x8d6f_07bd_77e2_fc16",
+):
+    if token not in galaxy_source:
+        raise SystemExit(f"GALAXY adapter source lost pinned identity: {token}")
+
+for forbidden in ("fn address_word(", "fn build_particles(", "physics::", "sin_cos_q30("):
+    if forbidden in galaxy_source:
+        raise SystemExit(f"GALAXY semantics copied into MESH adapter: {forbidden}")
 
 print("QSOL-MESH machine contracts valid")
