@@ -56,6 +56,17 @@ jobs:
           fi
           test ! -s /tmp/mesh-cuda-stdout
           grep -q 'CUDA helper launch failed' /tmp/mesh-cuda-stderr
+          cat > /tmp/mesh-cuda-extra-line-helper <<'SH'
+          #!/usr/bin/env bash
+          printf 'qsol.mesh.cuda-smoke-worker.v1\titems=1000\tchecksum=d3886842145b489c\tblocks=1\tthreads_per_block=256\tdevice=0\tcompute_major=12\tcompute_minor=0\tcuda_runtime=13020\tcuda_driver=13020\n\n'
+          SH
+          chmod +x /tmp/mesh-cuda-extra-line-helper
+          if cargo run -q -p qsol-mesh-cli --locked -- run smoke-cuda --items 1000 --device 0 --helper /tmp/mesh-cuda-extra-line-helper --json > /tmp/mesh-cuda-extra-stdout 2> /tmp/mesh-cuda-extra-stderr; then
+            echo "CUDA helper with extra blank output line unexpectedly produced successful execution" >&2
+            exit 1
+          fi
+          test ! -s /tmp/mesh-cuda-extra-stdout
+          grep -q 'exactly one protocol line' /tmp/mesh-cuda-extra-stderr
           python3 - <<'PY'
           import json
           from pathlib import Path
