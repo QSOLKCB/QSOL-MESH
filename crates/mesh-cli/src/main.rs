@@ -1,12 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use qsol_mesh_core::{
-    available_workers, run_smoke, Command, CONTRACT_SCHEMA, CONTRACT_VERSION, SMOKE_WORKLOAD_ID,
+    available_workers,
+    memory::{build_streaming_memory_plan, memory_plan_receipt_json, MemoryPlanRequest},
+    run_smoke, Command, CONTRACT_SCHEMA, CONTRACT_VERSION, SMOKE_WORKLOAD_ID,
 };
 use std::{env, process::ExitCode};
 
 fn usage() -> &'static str {
-    "Usage:\n  mesh inspect [--json]\n  mesh run smoke [--items N] [--workers N] [--json]\n  mesh verify smoke [--items N] [--workers N] [--json]\n  mesh <calibrate|plan|receipt> [--json]\n"
+    "Usage:\n  mesh inspect [--json]\n  mesh run smoke [--items N] [--workers N] [--json]\n  mesh verify smoke [--items N] [--workers N] [--json]\n  mesh plan memory [--total-bytes N] [--chunk-bytes N] [--pinned-limit-bytes N] [--accelerator-limit-bytes N] [--partial-bytes N] [--json]\n  mesh <calibrate|plan|receipt> [--json]\n"
 }
 
 fn parse_smoke(args: &[String]) -> Result<(u64, usize, bool), String> {
@@ -34,6 +36,86 @@ fn parse_smoke(args: &[String]) -> Result<(u64, usize, bool), String> {
         }
     }
     Ok((items, workers, json))
+}
+
+fn parse_memory_plan(args: &[String]) -> Result<(MemoryPlanRequest, bool), String> {
+    let mut request = MemoryPlanRequest {
+        total_bytes: 1_073_741_824,
+        requested_chunk_bytes: 67_108_864,
+        host_pinned_limit_bytes: 67_108_864,
+        accelerator_limit_bytes: 268_435_456,
+        partial_bytes: 24,
+    };
+    let mut json = false;
+    let mut seen_json = false;
+    let mut seen_total = false;
+    let mut seen_chunk = false;
+    let mut seen_pinned = false;
+    let mut seen_accelerator = false;
+    let mut seen_partial = false;
+
+    let mut i = 0;
+    while i < args.len() {
+        let flag = args[i].as_str();
+        if flag == "--json" {
+            if seen_json {
+                return Err("--json may be specified only once".into());
+            }
+            seen_json = true;
+            json = true;
+            i += 1;
+            continue;
+        }
+
+        let value = args
+            .get(i + 1)
+            .ok_or_else(|| format!("{flag} requires a value"))?;
+        let parsed = value
+            .parse::<u64>()
+            .map_err(|_| format!("{flag} must be u64"))?;
+
+        match flag {
+            "--total-bytes" => {
+                if seen_total {
+                    return Err("--total-bytes may be specified only once".into());
+                }
+                seen_total = true;
+                request.total_bytes = parsed;
+            }
+            "--chunk-bytes" => {
+                if seen_chunk {
+                    return Err("--chunk-bytes may be specified only once".into());
+                }
+                seen_chunk = true;
+                request.requested_chunk_bytes = parsed;
+            }
+            "--pinned-limit-bytes" => {
+                if seen_pinned {
+                    return Err("--pinned-limit-bytes may be specified only once".into());
+                }
+                seen_pinned = true;
+                request.host_pinned_limit_bytes = parsed;
+            }
+            "--accelerator-limit-bytes" => {
+                if seen_accelerator {
+                    return Err("--accelerator-limit-bytes may be specified only once".into());
+                }
+                seen_accelerator = true;
+                request.accelerator_limit_bytes = parsed;
+            }
+            "--partial-bytes" => {
+                if seen_partial {
+                    return Err("--partial-bytes may be specified only once".into());
+                }
+                seen_partial = true;
+                request.partial_bytes = parsed;
+            }
+            other => return Err(format!("unsupported memory plan argument: {other}")),
+        }
+        i += 2;
+    }
+
+    Ok((request, json))
 }
 
 fn print_inspect(json: bool) {
@@ -83,6 +165,23 @@ fn print_smoke(command: Command, args: &[String]) -> Result<(), String> {
     Ok(())
 }
 
+fn print_memory_plan(args: &[String]) -> Result<(), String> {
+    let (request, json) = parse_memory_plan(args)?;
+    let plan = build_streaming_memory_plan(request).map_err(str::to_owned)?;
+    if json {
+        println!(
+            "{}",
+            memory_plan_receipt_json(&plan).map_err(str::to_owned)?
+        );
+    } else {
+        println!(
+            "memory-plan strategy={} total_bytes={} effective_chunk_bytes={} chunks={} physically_materialized=false",
+            plan.strategy, plan.request.total_bytes, plan.effective_chunk_bytes, plan.chunk_count
+        );
+    }
+    Ok(())
+}
+
 fn stub(command: Command, args: &[String]) -> Result<(), String> {
     if args.iter().any(|arg| arg != "--json") {
         return Err("only --json is accepted for unimplemented commands".into());
@@ -121,6 +220,9 @@ fn main() -> ExitCode {
         }
         Command::Run | Command::Verify if args.get(1).map(String::as_str) == Some("smoke") => {
             print_smoke(command, &args[2..])
+        }
+        Command::Plan if args.get(1).map(String::as_str) == Some("memory") => {
+            print_memory_plan(&args[2..])
         }
         _ => stub(command, &args[1..]),
     };
