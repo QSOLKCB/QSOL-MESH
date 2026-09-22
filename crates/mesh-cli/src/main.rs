@@ -327,13 +327,14 @@ fn print_cuda_smoke(command: Command, args: &[String]) -> Result<(), String> {
             cuda_smoke_receipt_json(command.as_str(), &helper, run).map_err(str::to_owned)?
         );
     } else {
+        let observation = run.observation();
         println!(
             "{} backend=nvidia-cuda device={} blocks={} threads_per_block={} checksum={:016x} verified=true",
             SMOKE_WORKLOAD_ID,
-            run.observation.device_ordinal,
-            run.observation.blocks,
-            run.observation.threads_per_block,
-            run.observation.checksum
+            observation.device_ordinal,
+            observation.blocks,
+            observation.threads_per_block,
+            observation.checksum
         );
     }
     Ok(())
