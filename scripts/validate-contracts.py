@@ -12,6 +12,7 @@ EXPECTED = {
     "memory-plan-contract.v1.json":"qsol.mesh.memory-plan-contract.v1",
     "calibrated-plan-contract.v1.json":"qsol.mesh.calibrated-plan-contract.v1",
     "nvidia-executor-contract.v1.json":"qsol.mesh.nvidia-executor-contract.v1",
+    "static-split-contract.v1.json":"qsol.mesh.static-split-contract.v1",
     "evidence-contract.v1.json":"qsol.mesh.evidence-contract.v1",
 }
 loaded = {}
@@ -233,6 +234,12 @@ if nvidia["backend"] != "nvidia-cuda":
     raise SystemExit("NVIDIA executor backend drift")
 if nvidia["worker_protocol"] != "qsol.mesh.cuda-smoke-worker.v1":
     raise SystemExit("CUDA worker protocol drift")
+if nvidia["range_worker_protocol"] != "qsol.mesh.cuda-smoke-range-worker.v1":
+    raise SystemExit("CUDA range worker protocol drift")
+if nvidia["execution_contract"]["range_execution_supported"] is not True:
+    raise SystemExit("CUDA range execution support drift")
+if nvidia["execution_contract"]["range_start_plus_items_must_fit_u64"] is not True:
+    raise SystemExit("CUDA range arithmetic boundary drift")
 if nvidia["workload_identity"] != "mesh-smoke-v1":
     raise SystemExit("CUDA executor workload identity drift")
 if nvidia["execution_contract"]["real_cuda_kernel_required"] is not True:
@@ -279,6 +286,7 @@ if nvidia["verification_contract"] != {
     "worker_checksum_must_equal_scalar_reference": True,
     "verified_receipt_requires_oracle_pass": True,
     "receipt_revalidates_resolved_worker_path": True,
+    "range_worker_checksum_must_equal_scalar_range_reference": True,
 }:
     raise SystemExit("CUDA executor verification contract drift")
 if nvidia["observation_contract"]["helper_reported_topology_is_independently_attested"] is not False:
@@ -291,6 +299,9 @@ if nvidia["ci_boundary"]["ci_may_claim_gpu_execution_without_cuda_capable_runner
 accelerator_source = (ROOT / "crates/mesh-core/src/accelerator.rs").read_text(encoding="utf-8")
 for token in (
     "qsol.mesh.cuda-smoke-worker.v1",
+    "qsol.mesh.cuda-smoke-range-worker.v1",
+    "run_cuda_smoke_range",
+    "CUDA range checksum does not match scalar smoke oracle",
     "CANONICAL_CUDA_HELPER_FILENAME",
     "canonical_cuda_helper_path",
     "std::env::current_exe",
@@ -324,6 +335,9 @@ for token in (
     "cudaDeviceSynchronize",
     "cudaMemcpy",
     "qsol.mesh.cuda-smoke-worker.v1",
+    "qsol.mesh.cuda-smoke-range-worker.v1",
+    'std::strcmp(argv[index], "--start")',
+    "const unsigned long long id = start + offset",
 ):
     if token not in cuda_source:
         raise SystemExit(f"CUDA worker lost required execution primitive: {token}")
@@ -356,11 +370,78 @@ for token in (
     if token not in build_script:
         raise SystemExit(f"CUDA build script lost required binding: {token}")
 
+
+static_split = loaded["static-split-contract.v1.json"]
+if static_split["split_id"] != "mesh-smoke-static-cpu-cuda-v1":
+    raise SystemExit("static split identity drift")
+if static_split["workload_identity"] != "mesh-smoke-v1":
+    raise SystemExit("static split workload identity drift")
+if static_split["cuda_range_worker_protocol"] != "qsol.mesh.cuda-smoke-range-worker.v1":
+    raise SystemExit("static split CUDA range protocol drift")
+if static_split["partition_contract"] != {
+    "kind": "caller-fixed-contiguous-prefix-suffix-v1",
+    "caller_supplies_cpu_items": True,
+    "cpu_range": "[0,cpu_items)",
+    "cuda_range": "[cpu_items,items)",
+    "two_nonempty_partitions_required": True,
+    "complete_cover_required": True,
+    "overlap_allowed": False,
+    "adaptive_repartitioning": False,
+    "hardware_name_may_choose_split": False,
+}:
+    raise SystemExit("static split partition contract drift")
+if static_split["execution_contract"] != {
+    "execution_order": ["cpu", "nvidia-cuda"],
+    "concurrent": False,
+    "dynamic_work_stealing": False,
+    "cpu_fallback_on_cuda_failure": False,
+    "cuda_range_must_use_canonical_worker": True,
+    "each_partition_requires_its_own_range_oracle": True,
+    "full_reduction_requires_scalar_oracle": True,
+}:
+    raise SystemExit("static split execution contract drift")
+if static_split["reduction_contract"] != {
+    "kind": "partition-order-wrapping-u64",
+    "order": ["cpu", "nvidia-cuda"],
+    "completion_order_may_change_reduction_order": False,
+}:
+    raise SystemExit("static split reduction contract drift")
+if static_split["receipt_contract"]["schema"] != "qsol.mesh.static-split-receipt.v1":
+    raise SystemExit("static split receipt schema drift")
+if static_split["ci_boundary"]["default_github_runner_has_cuda_execution_evidence"] is not False:
+    raise SystemExit("static split CI falsely claims CUDA execution evidence")
+if static_split["ci_boundary"]["ci_may_claim_static_heterogeneous_execution_without_cuda_capable_runner"] is not False:
+    raise SystemExit("static split CI execution-evidence boundary weakened")
+
+split_source = (ROOT / "crates/mesh-core/src/static_split.rs").read_text(encoding="utf-8")
+for token in (
+    "run_static_smoke_partition",
+    "static-cpu-cuda-partition-v1",
+    '"concurrent":false',
+    '"adaptive":false',
+    "partition-order-wrapping-u64",
+    "CPU static-split checksum does not match assigned range oracle",
+    "CUDA static-split checksum does not match assigned range oracle",
+    "static CPU/CUDA reduction does not match full smoke oracle",
+    "run_cuda_smoke_range",
+):
+    if token not in split_source:
+        raise SystemExit(f"static split source lost required boundary: {token}")
+
+core_source = (ROOT / "crates/mesh-core/src/lib.rs").read_text(encoding="utf-8")
+for token in ("smoke_reference_range", "run_smoke_range", "smoke logical range overflows u64"):
+    if token not in core_source:
+        raise SystemExit(f"CPU smoke range support lost required boundary: {token}")
+
+if "smoke-static" not in cli_source or "--cpu-items is required for a fixed static split" not in cli_source:
+    raise SystemExit("static split CLI lost explicit fixed geometry")
+
 agents = (ROOT / "AGENTS.md").read_text(encoding="utf-8")
 for contract_name in (
     "machine/memory-plan-contract.v1.json",
     "machine/calibrated-plan-contract.v1.json",
     "machine/nvidia-executor-contract.v1.json",
+    "machine/static-split-contract.v1.json",
 ):
     if contract_name not in agents:
         raise SystemExit(f"AGENTS.md does not expose normative contract: {contract_name}")
