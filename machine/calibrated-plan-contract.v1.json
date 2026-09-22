@@ -30,6 +30,12 @@
     "cpu_smoke_nonzero_setup_or_transfer_is_admissible": false,
     "accelerator_measurement_status": "pending-real-accelerator-executor"
   },
+  "oracle_contract": {
+    "kind": "mesh-smoke-v1-scalar-reference-equality",
+    "calibration_canonical_must_match_smoke_reference": true,
+    "confirmation_canonical_must_match_smoke_reference": true,
+    "peer_checksum_equality_cannot_replace_workload_oracle": true
+  },
   "search_contract": {
     "kind": "deterministic-min-total-cost-v1",
     "tie_break": "lowest-candidate-id",
