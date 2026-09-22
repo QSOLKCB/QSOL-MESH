@@ -175,8 +175,8 @@ fn run_cuda_smoke_with_helper(
     let stdout = std::str::from_utf8(&output.stdout)
         .map_err(|_| "CUDA helper stdout is not UTF-8".to_owned())?;
     let observation = parse_cuda_worker_line(stdout).map_err(str::to_owned)?;
-    let reference =
-        validate_cuda_worker_observation(items, device_ordinal, observation).map_err(str::to_owned)?;
+    let reference = validate_cuda_worker_observation(items, device_ordinal, observation)
+        .map_err(str::to_owned)?;
     Ok(CudaSmokeRun {
         observation,
         reference,
