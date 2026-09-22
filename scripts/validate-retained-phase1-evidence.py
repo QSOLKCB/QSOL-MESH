@@ -12,6 +12,17 @@ SOURCE_COMMIT = "58301da12f241ae823f70174a3028319abe9a36f"
 EXPECTED_CHECKSUM = "9d390352e9b7d24c"
 EXPECTED_CUDA_HELPER_PATH = "/home/trent/qsol-mesh-dev/QSOL-MESH/target/mesh-cuda-smoke"
 EXPECTED_CUDA_RECEIPT_REDUCTION = "device-strided-local-sums-plus-atomicAdd-u64"
+EXPECTED_RETAINED_ENVIRONMENT = {
+    "cpu": "AMD Ryzen 9 5950X",
+    "gpu": "NVIDIA GeForce RTX 5060 Ti",
+    "gpu_memory_mib": 16311,
+    "compute_capability": "12.0",
+    "nvidia_driver": "595.84",
+    "cuda_runtime_api": 13020,
+    "cuda_driver_api": 13020,
+    "cuda_compiler": "13.2.86",
+    "rust": "1.85.1",
+}
 MASK_U64 = (1 << 64) - 1
 SMOKE_SEED = 0x4D4553485F534D4B
 
@@ -182,22 +193,61 @@ def validate_partition_receipt(receipt, label, *, concurrent):
         raise SystemExit(f"{label}: deterministic reduction contract drift")
 
     if concurrent:
-        if execution.get("concurrent_dispatch") is not True or execution.get("adaptive") is not False:
-            raise SystemExit(f"{label}: concurrent dispatch/adaptive boundary drift")
-        if execution.get("reduction_order") != ["cpu", "nvidia-cuda"]:
-            raise SystemExit(f"{label}: deterministic reduction order drift")
-        dispatch = execution.get("dispatch_contract", {})
-        if dispatch != {
+        dispatch = {
             "cpu_joined_after_cuda_call_return": True,
             "cpu_task_spawned_before_cuda_call": True,
             "kernel_overlap_measured": False,
-        }:
-            raise SystemExit(f"{label}: concurrent dispatch ordering/claim boundary drift")
+        }
+        expected_execution = {
+            "adaptive": False,
+            "concurrent_dispatch": True,
+            "cpu": {
+                "checksum": cpu_reference,
+                "effective_workers": effective_workers,
+                "range_end": cpu_items,
+                "range_start": 0,
+                "requested_workers": cpu_workers,
+            },
+            "cuda": {
+                "blocks": cuda["blocks"],
+                "checksum": cuda_reference,
+                "device_ordinal": requested_device,
+                "range_end": items,
+                "range_start": cpu_items,
+                "threads_per_block": cuda["threads_per_block"],
+            },
+            "dispatch_contract": dispatch,
+            "kind": "concurrent-cpu-cuda-partition-v1",
+            "reduction": "partition-order-wrapping-u64",
+            "reduction_order": ["cpu", "nvidia-cuda"],
+        }
+        if execution != expected_execution:
+            raise SystemExit(f"{label}: concurrent effective-execution shape drift")
     else:
-        if execution.get("concurrent") is not False or execution.get("adaptive") is not False:
-            raise SystemExit(f"{label}: static execution-boundary drift")
-        if execution.get("execution_order") != ["cpu", "nvidia-cuda"]:
-            raise SystemExit(f"{label}: static execution order drift")
+        expected_execution = {
+            "adaptive": False,
+            "concurrent": False,
+            "cpu": {
+                "checksum": cpu_reference,
+                "effective_workers": effective_workers,
+                "range_end": cpu_items,
+                "range_start": 0,
+                "requested_workers": cpu_workers,
+            },
+            "cuda": {
+                "blocks": cuda["blocks"],
+                "checksum": cuda_reference,
+                "device_ordinal": requested_device,
+                "range_end": items,
+                "range_start": cpu_items,
+                "threads_per_block": cuda["threads_per_block"],
+            },
+            "execution_order": ["cpu", "nvidia-cuda"],
+            "kind": "static-cpu-cuda-partition-v1",
+            "reduction": "partition-order-wrapping-u64",
+        }
+        if execution != expected_execution:
+            raise SystemExit(f"{label}: static effective-execution shape drift")
 
     return {
         "items": items,
@@ -217,6 +267,8 @@ if manifest.get("source_commit") != SOURCE_COMMIT:
     raise SystemExit("retained evidence source commit drift")
 if manifest.get("workload_identity") != "mesh-smoke-v1":
     raise SystemExit("retained evidence workload identity drift")
+if manifest.get("environment") != EXPECTED_RETAINED_ENVIRONMENT:
+    raise SystemExit("retained evidence environment identity drift")
 
 entries = manifest.get("files")
 if not isinstance(entries, list) or len(entries) != len(EXPECTED_FILES):
@@ -282,9 +334,19 @@ concurrent_contract = json.loads(
     (ROOT / "machine" / "concurrent-split-contract.v1.json").read_text(encoding="utf-8")
 )
 
+if (
+    static_contract.get("cuda_executor") != nvidia_contract["executor_id"]
+    or concurrent_contract.get("cuda_executor") != nvidia_contract["executor_id"]
+):
+    raise SystemExit("split CUDA executor identity disagrees with NVIDIA executor")
+if (
+    static_contract.get("cuda_range_worker_protocol") != nvidia_contract["range_worker_protocol"]
+):
+    raise SystemExit("static split CUDA worker protocol disagrees with NVIDIA executor")
+
 
 def retained_cuda_identity():
-    environment = manifest.get("environment", {})
+    environment = manifest["environment"]
     compute_capability = environment.get("compute_capability")
     if not isinstance(compute_capability, str):
         raise SystemExit("retained manifest compute capability is invalid")
@@ -417,8 +479,29 @@ if (
     or gpu_execution.get("device_ordinal") != requested_device
 ):
     raise SystemExit("retained CUDA requested/observed/effective device mismatch")
-if gpu_topology.get("backend") != "nvidia-cuda" or gpu_execution.get("backend") != "nvidia-cuda":
+if gpu_topology.get("backend") != "nvidia-cuda":
     raise SystemExit("retained CUDA backend drift")
+
+blocks = gpu_execution.get("blocks")
+threads_per_block = gpu_execution.get("threads_per_block")
+if (
+    not isinstance(blocks, int)
+    or isinstance(blocks, bool)
+    or blocks <= 0
+    or not isinstance(threads_per_block, int)
+    or isinstance(threads_per_block, bool)
+    or threads_per_block <= 0
+):
+    raise SystemExit("retained CUDA launch geometry is invalid")
+expected_gpu_execution = {
+    "backend": "nvidia-cuda",
+    "blocks": blocks,
+    "device_ordinal": requested_device,
+    "reduction": EXPECTED_CUDA_RECEIPT_REDUCTION,
+    "threads_per_block": threads_per_block,
+}
+if gpu_execution != expected_gpu_execution:
+    raise SystemExit("retained CUDA effective-execution shape drift")
 
 compute_major = gpu_topology.get("compute_major")
 compute_minor = gpu_topology.get("compute_minor")
@@ -442,8 +525,6 @@ if (
 ):
     raise SystemExit("retained CUDA required topology evidence drift")
 
-if gpu_execution.get("reduction") != EXPECTED_CUDA_RECEIPT_REDUCTION:
-    raise SystemExit("retained CUDA reduction mode drift")
 if (
     nvidia_contract["execution_contract"]["device_side_checksum_accumulation"]
     != "wrapping-u64-local-sums-plus-atomicAdd"
@@ -484,7 +565,7 @@ if static.get("schema") != static_contract["receipt_contract"]["schema"]:
     raise SystemExit("retained static receipt schema drift")
 static_geometry = validate_partition_receipt(static, "static split", concurrent=False)
 if static.get("source_identity") != {
-    "cuda_executor_id": static_contract["cuda_executor"],
+    "cuda_executor_id": nvidia_contract["executor_id"],
     "cuda_worker_protocol": static_contract["cuda_range_worker_protocol"],
     "runtime": "qsol-mesh-cli",
     "split_id": static_contract["split_id"],
@@ -510,8 +591,8 @@ concurrent_geometry = validate_partition_receipt(
     concurrent=True,
 )
 if concurrent.get("source_identity") != {
-    "cuda_executor_id": concurrent_contract["cuda_executor"],
-    "cuda_worker_protocol": "qsol.mesh.cuda-smoke-range-worker.v1",
+    "cuda_executor_id": nvidia_contract["executor_id"],
+    "cuda_worker_protocol": nvidia_contract["range_worker_protocol"],
     "runtime": "qsol-mesh-cli",
     "split_id": concurrent_contract["split_id"],
     "split_schema": "qsol.mesh.concurrent-split.v1",
