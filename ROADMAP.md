@@ -15,7 +15,10 @@
   - [x] Real single-device CUDA smoke kernel/helper and Rust launcher.
   - [x] Requested/observed/effective CUDA receipt with exact scalar-oracle verification.
   - [ ] Retained execution receipt from a CUDA-capable host.
-- [ ] Static CPU/GPU partition only.
+- [x] Static CPU/GPU partition only.
+  - [x] Caller-fixed contiguous CPU prefix + CUDA suffix with range-native execution.
+  - [x] Per-partition range-oracle verification and full scalar-oracle reduction.
+  - [ ] Retained static heterogeneous execution receipt from a CUDA-capable host.
 - [ ] Concurrent execution.
 - [x] Deterministic reduction independent of completion order.
 - [x] Canonical parity and receipt.
