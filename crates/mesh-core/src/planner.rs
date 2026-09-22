@@ -4,7 +4,7 @@
 //! Candidate generation is topology-derived and bounded. Selection is driven by
 //! measured cost evidence only. Hardware names are never performance authority.
 
-use crate::{run_smoke, SMOKE_WORKLOAD_ID};
+use crate::{run_smoke, smoke_reference, SMOKE_WORKLOAD_ID};
 use std::time::Instant;
 
 pub const CALIBRATED_PLAN_SCHEMA: &str = "qsol.mesh.calibrated-plan.v1";
@@ -355,6 +355,20 @@ fn materially_faster(
     Ok(lhs > rhs)
 }
 
+fn canonical_matches_smoke_oracle(
+    canonical_id: u32,
+    observations: &[CostObservation],
+    work_units: u64,
+) -> Result<(), &'static str> {
+    let canonical =
+        observation_by_id(observations, canonical_id).ok_or("canonical observation missing")?;
+    let expected = smoke_reference(work_units)?;
+    if canonical.checksum != expected {
+        return Err("canonical checksum does not match smoke oracle");
+    }
+    Ok(())
+}
+
 fn checksums_match_canonical(
     canonical_id: u32,
     observations: &[CostObservation],
@@ -388,6 +402,7 @@ pub fn select_calibrated_plan(
 
     let canonical = validate_candidate_set(topology, &candidates)?;
     validate_observations(&candidates, &calibration, request.calibration_units, true)?;
+    canonical_matches_smoke_oracle(canonical.id, &calibration, request.calibration_units)?;
     checksums_match_canonical(canonical.id, &calibration)?;
 
     let calibration_winner = best_observed_candidate(&candidates, &calibration)?;
@@ -421,6 +436,7 @@ pub fn select_calibrated_plan(
             return Err("full-work confirmation missing required candidate");
         }
     }
+    canonical_matches_smoke_oracle(canonical.id, &confirmation, request.full_work_units)?;
     checksums_match_canonical(canonical.id, &confirmation)?;
 
     let (selected, reason) = if provisional == canonical.id {
@@ -694,7 +710,7 @@ mod tests {
             service_ns: total_ns,
             setup_ns: 0,
             transfer_ns: 0,
-            checksum: 0x1234,
+            checksum: smoke_reference(units).unwrap(),
             verified: true,
         }
     }
@@ -853,6 +869,50 @@ mod tests {
                 CalibrationRequest::new(100, 1_000, 1, 500),
             ),
             Err("unverified cost observation is not admissible")
+        );
+    }
+
+    #[test]
+    fn calibration_rejects_peer_agreement_that_fails_smoke_oracle() {
+        let candidates = cpu_candidates();
+        let mut canonical = observation(0, 100, 1_000);
+        let mut peer = observation(1, 100, 900);
+        canonical.checksum = 0;
+        peer.checksum = 0;
+        assert_ne!(smoke_reference(100).unwrap(), 0);
+        assert_eq!(
+            select_calibrated_plan(
+                TopologyObservation {
+                    available_cpu_workers: 8,
+                    accelerator_observed: false,
+                },
+                candidates,
+                vec![canonical, peer],
+                vec![observation(0, 1_000, 10_000)],
+                CalibrationRequest::new(100, 1_000, 1, 500),
+            ),
+            Err("canonical checksum does not match smoke oracle")
+        );
+    }
+
+    #[test]
+    fn confirmation_rejects_peer_agreement_that_fails_smoke_oracle() {
+        let candidates = cpu_candidates();
+        let mut canonical_full = observation(0, 1_000, 10_000);
+        canonical_full.checksum = 0;
+        assert_ne!(smoke_reference(1_000).unwrap(), 0);
+        assert_eq!(
+            select_calibrated_plan(
+                TopologyObservation {
+                    available_cpu_workers: 8,
+                    accelerator_observed: false,
+                },
+                candidates,
+                vec![observation(0, 100, 1_000), observation(1, 100, 960)],
+                vec![canonical_full],
+                CalibrationRequest::new(100, 1_000, 1, 500),
+            ),
+            Err("canonical checksum does not match smoke oracle")
         );
     }
 
