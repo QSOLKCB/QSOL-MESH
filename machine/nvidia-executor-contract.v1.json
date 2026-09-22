@@ -18,7 +18,9 @@
     "protocol_may_have_at_most_one_line_terminator": true,
     "verified_run_provenance_must_be_launcher_issued": true,
     "logical_id_iteration_must_not_wrap_u64": true,
-    "verified_worker_path": "target/mesh-cuda-smoke",
+    "verified_worker_location": "application-target-directory/mesh-cuda-smoke",
+    "verified_worker_resolution": "canonicalized-current-executable-nearest-target-ancestor",
+    "caller_working_directory_may_influence_verified_worker_resolution": false,
     "verified_worker_override_allowed": false,
     "verified_worker_environment_override_allowed": false,
     "arbitrary_helper_stdout_may_issue_verified_receipt": false
@@ -35,7 +37,8 @@
     "kind": "mesh-smoke-v1-scalar-reference-equality",
     "rust_launcher_recomputes_scalar_reference": true,
     "worker_checksum_must_equal_scalar_reference": true,
-    "verified_receipt_requires_oracle_pass": true
+    "verified_receipt_requires_oracle_pass": true,
+    "receipt_revalidates_resolved_worker_path": true
   },
   "build_contract": {
     "source": "accelerators/cuda/mesh_smoke_cuda.cu",
@@ -52,7 +55,8 @@
   },
   "trust_boundary": {
     "caller_selected_executables_are_execution_evidence": false,
-    "repository_canonical_build_output_is_the_only_verified_worker_path": true,
+    "caller_working_directory_is_execution_authority": false,
+    "application_anchored_canonical_worker_is_required": true,
     "local_filesystem_and_build_environment_are_outside_this_contract": true,
     "canonical_path_is_not_cryptographic_binary_attestation": true
   },
@@ -62,5 +66,5 @@
     "ci_may_claim_gpu_execution_without_cuda_capable_runner": false
   },
   "evidence_status": "runtime-only-until-cuda-capable-host-receipt-is-retained",
-  "claim_boundary": "Experimental single-device NVIDIA CUDA execution for mesh-smoke-v1. Verified physical-execution claims are admitted only through the repository canonical worker path, after successful worker execution, strict protocol validation, and independent scalar-oracle equality. Caller-selected executables cannot mint verified CUDA receipts. Helper-reported topology is not independently attested, and this is not performance evidence."
+  "claim_boundary": "Experimental single-device NVIDIA CUDA execution for mesh-smoke-v1. Verified physical-execution claims are admitted only through the application-anchored canonical worker resolved independently of the caller working directory, after successful worker execution, strict protocol validation, and independent scalar-oracle equality. Caller-selected executables and caller CWD cannot mint verified CUDA receipts. Helper-reported topology is not independently attested, and this is not performance evidence."
 }
