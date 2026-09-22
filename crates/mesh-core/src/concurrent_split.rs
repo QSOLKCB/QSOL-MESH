@@ -7,11 +7,13 @@
 
 use crate::{
     accelerator::{
-        run_cuda_smoke_range, validate_cuda_smoke_range_run, CudaSmokeRangeRun,
-        CUDA_EXECUTOR_ID, CUDA_RANGE_WORKER_PROTOCOL,
+        run_cuda_smoke_range, validate_cuda_smoke_range_run, CudaSmokeRangeRun, CUDA_EXECUTOR_ID,
+        CUDA_RANGE_WORKER_PROTOCOL,
     },
     available_workers, run_smoke_range,
-    static_split::{validate_partition_checksums, validate_static_split_request, StaticSplitRequest},
+    static_split::{
+        validate_partition_checksums, validate_static_split_request, StaticSplitRequest,
+    },
     SmokeRangeRun, SMOKE_WORKLOAD_ID,
 };
 
@@ -57,10 +59,7 @@ impl ConcurrentSplitRun {
     }
 }
 
-fn run_concurrent_pair<C, D, F, G>(
-    cpu_fn: F,
-    cuda_fn: G,
-) -> Result<(C, D), String>
+fn run_concurrent_pair<C, D, F, G>(cpu_fn: F, cuda_fn: G) -> Result<(C, D), String>
 where
     C: Send,
     F: FnOnce() -> Result<C, String> + Send,
@@ -127,10 +126,7 @@ pub fn run_concurrent_smoke_partition(
     let cuda_items = request.items - request.cpu_items;
 
     let (cpu, cuda) = run_concurrent_pair(
-        || {
-            run_smoke_range(0, request.cpu_items, request.cpu_workers)
-                .map_err(str::to_owned)
-        },
+        || run_smoke_range(0, request.cpu_items, request.cpu_workers).map_err(str::to_owned),
         || run_cuda_smoke_range(request.cpu_items, cuda_items, request.device_ordinal),
     )?;
 
@@ -216,10 +212,7 @@ pub fn concurrent_split_receipt_json(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::{
-        sync::mpsc,
-        time::Duration,
-    };
+    use std::{sync::mpsc, time::Duration};
 
     #[test]
     fn concurrent_pair_dispatches_cuda_before_cpu_join() {
@@ -227,8 +220,9 @@ mod tests {
 
         let (cpu, cuda) = run_concurrent_pair(
             || {
-                rx.recv_timeout(Duration::from_secs(1))
-                    .map_err(|_| "CUDA closure was not dispatched while CPU task was live".to_owned())?;
+                rx.recv_timeout(Duration::from_secs(1)).map_err(|_| {
+                    "CUDA closure was not dispatched while CPU task was live".to_owned()
+                })?;
                 Ok::<_, String>(11_u32)
             },
             || {
@@ -259,12 +253,9 @@ mod tests {
             cpu_workers: 4,
             device_ordinal: 0,
         };
-        let (checksum, reference) = validate_partition_checksums(
-            request,
-            0x6c9c_c32b_3b0b_5f89,
-            0x66eb_a516_d94f_e913,
-        )
-        .unwrap();
+        let (checksum, reference) =
+            validate_partition_checksums(request, 0x6c9c_c32b_3b0b_5f89, 0x66eb_a516_d94f_e913)
+                .unwrap();
         assert_eq!(checksum, 0xd388_6842_145b_489c);
         assert_eq!(checksum, reference);
     }
