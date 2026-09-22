@@ -283,25 +283,21 @@ concurrent_contract = json.loads(
 )
 
 
-def validate_split_topology(receipt, label):
-    topology = receipt.get("observed_topology", {})
-    request = receipt.get("requested_configuration", {})
-    available_workers = topology.get("available_cpu_workers")
-    compute_major = topology.get("cuda_compute_major")
-    compute_minor = topology.get("cuda_compute_minor")
-    runtime_version = topology.get("cuda_runtime_version")
-    driver_version = topology.get("cuda_driver_version")
+def retained_cuda_identity():
+    environment = manifest.get("environment", {})
+    compute_capability = environment.get("compute_capability")
+    if not isinstance(compute_capability, str):
+        raise SystemExit("retained manifest compute capability is invalid")
+    match = re.fullmatch(r"([0-9]+)\\.([0-9]+)", compute_capability)
+    if match is None:
+        raise SystemExit("retained manifest compute capability is invalid")
+
+    compute_major = int(match.group(1))
+    compute_minor = int(match.group(2))
+    runtime_version = environment.get("cuda_runtime_api")
+    driver_version = environment.get("cuda_driver_api")
     if (
-        topology.get("accelerator_observed") is not True
-        or not isinstance(available_workers, int)
-        or isinstance(available_workers, bool)
-        or available_workers <= 0
-        or topology.get("cuda_device_ordinal") != request.get("device_ordinal")
-        or not isinstance(compute_major, int)
-        or isinstance(compute_major, bool)
-        or compute_major <= 0
-        or not isinstance(compute_minor, int)
-        or isinstance(compute_minor, bool)
+        compute_major <= 0
         or compute_minor < 0
         or not isinstance(runtime_version, int)
         or isinstance(runtime_version, bool)
@@ -309,32 +305,93 @@ def validate_split_topology(receipt, label):
         or not isinstance(driver_version, int)
         or isinstance(driver_version, bool)
         or driver_version <= 0
-        or topology.get("cuda_evidence_source")
-        != nvidia_contract["observation_contract"]["evidence_source"]
-        or topology.get("cuda_helper_path") != EXPECTED_CUDA_HELPER_PATH
     ):
+        raise SystemExit("retained manifest CUDA identity is invalid")
+
+    gpu_topology = gpu.get("observed_topology", {})
+    identity = {
+        "device_ordinal": gpu.get("requested_configuration", {}).get("device_ordinal"),
+        "compute_major": compute_major,
+        "compute_minor": compute_minor,
+        "cuda_runtime_version": runtime_version,
+        "cuda_driver_version": driver_version,
+        "evidence_source": nvidia_contract["observation_contract"]["evidence_source"],
+    }
+    if gpu_topology != {
+        "accelerator_observed": True,
+        "backend": "nvidia-cuda",
+        **identity,
+    }:
+        raise SystemExit("retained GPU topology disagrees with manifest environment")
+    if (
+        manifest.get("claim_boundary", {}).get(
+            "helper_reported_topology_is_independently_attested"
+        )
+        is not nvidia_contract["observation_contract"][
+            "helper_reported_topology_is_independently_attested"
+        ]
+    ):
+        raise SystemExit("retained topology attestation boundary drift")
+    return identity
+
+
+def validate_split_topology(receipt, label):
+    topology = receipt.get("observed_topology", {})
+    request = receipt.get("requested_configuration", {})
+    available_workers = topology.get("available_cpu_workers")
+    if (
+        not isinstance(available_workers, int)
+        or isinstance(available_workers, bool)
+        or available_workers <= 0
+    ):
+        raise SystemExit(f"{label}: retained CPU topology evidence drift")
+
+    identity = retained_cuda_identity()
+    expected = {
+        "available_cpu_workers": available_workers,
+        "accelerator_observed": True,
+        "cuda_device_ordinal": identity["device_ordinal"],
+        "cuda_compute_major": identity["compute_major"],
+        "cuda_compute_minor": identity["compute_minor"],
+        "cuda_runtime_version": identity["cuda_runtime_version"],
+        "cuda_driver_version": identity["cuda_driver_version"],
+        "cuda_helper_path": EXPECTED_CUDA_HELPER_PATH,
+        "cuda_evidence_source": identity["evidence_source"],
+    }
+    if request.get("device_ordinal") != identity["device_ordinal"]:
+        raise SystemExit(f"{label}: requested CUDA device disagrees with retained host")
+    if topology != expected:
         raise SystemExit(f"{label}: retained CUDA topology evidence drift")
 
 
 def expected_split_memory_plan():
+    nvidia_memory = nvidia_contract["memory_contract"]
+    split_memory = static_contract["memory_contract"]
     if (
-        nvidia_contract["memory_contract"]["persistent_accelerator_pool"] is not False
-        or nvidia_contract["memory_contract"]["pinned_host_staging"] is not False
+        nvidia_memory["persistent_accelerator_pool"] is not False
+        or nvidia_memory["pinned_host_staging"] is not False
     ):
         raise SystemExit("NVIDIA executor physical-memory claim boundary drift")
+    if (
+        split_memory["accelerator_checksum_buffer_bytes"]
+        != nvidia_memory["accelerator_checksum_buffer_bytes"]
+        or split_memory["per_item_materialization"]
+        != nvidia_memory["per_item_device_materialization"]
+    ):
+        raise SystemExit("split memory contract disagrees with NVIDIA executor")
     return {
         "domains": [
-            static_contract["memory_contract"]["cpu_domain"],
-            static_contract["memory_contract"]["cuda_domain"],
+            split_memory["cpu_domain"],
+            split_memory["cuda_domain"],
         ],
-        "per_item_materialization": static_contract["memory_contract"][
-            "per_item_materialization"
+        "per_item_materialization": nvidia_memory[
+            "per_item_device_materialization"
         ],
         "cpu_temporary_state": "O(cpu-workers)",
-        "accelerator_checksum_buffer_bytes": static_contract["memory_contract"][
+        "accelerator_checksum_buffer_bytes": nvidia_memory[
             "accelerator_checksum_buffer_bytes"
         ],
-        "device_to_host_result_bytes": static_contract["memory_contract"][
+        "device_to_host_result_bytes": split_memory[
             "device_to_host_result_bytes"
         ],
     }
