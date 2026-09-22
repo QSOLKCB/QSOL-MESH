@@ -75,6 +75,14 @@ The receipt deliberately says `"kernel_overlap_measured":false`. This stage esta
 
 See `CONCURRENT-SPLIT.md` and `machine/concurrent-split-contract.v1.json`.
 
+### Retained CUDA-host Phase 1 evidence
+
+The three CUDA-host evidence gates left open by the implementation PRs are now backed by retained verify receipts produced from clean source commit `58301da12f241ae823f70174a3028319abe9a36f` on 2026-09-23. The retained bundle covers single-device CUDA execution, the fixed sequential CPU/CUDA split, and concurrent executor-call dispatch of the same fixed split.
+
+The retained concurrent receipt still records `kernel_overlap_measured:false`. This evidence closes the execution-receipt gates only; it does not claim kernel-level overlap, a performance gain, independently attested GPU telemetry, or cryptographic host attestation.
+
+See `evidence/phase1-cuda-host-2026-09-23/README.md` and `scripts/validate-retained-phase1-evidence.py`.
+
 ## Phase 2 GALAXY adapter boundary
 
 The first external adapter now has a machine-readable contract plus reusable range/reduction primitives. MESH can split a GALAXY logical population into complete half-open ranges, emit executor-local regeneration requests, accept compact range-bound `u64` partials in any completion order, validate exact coverage, reduce deterministically, and fail closed on oracle disagreement.
