@@ -138,15 +138,17 @@ pub fn regeneration_requests(
     if frames == 0 {
         return Err("frames must be greater than zero");
     }
-    Ok(partition_logical_ids(logical_population, requested_partitions)?
-        .into_iter()
-        .map(|range| RegenerationRequest {
-            logical_population,
-            range,
-            frames,
-            seed,
-        })
-        .collect())
+    Ok(
+        partition_logical_ids(logical_population, requested_partitions)?
+            .into_iter()
+            .map(|range| RegenerationRequest {
+                logical_population,
+                range,
+                frames,
+                seed,
+            })
+            .collect(),
+    )
 }
 
 pub fn reduce_partials(
@@ -329,11 +331,9 @@ mod tests {
     fn baseline_plans_are_static_geometry_not_capability_claims() {
         let cpu = requested_baseline_plan(10, BaselineKind::CpuOnly).unwrap();
         assert_eq!(cpu[0].placement, Placement::Cpu);
-        let accelerator =
-            requested_baseline_plan(10, BaselineKind::AcceleratorOnly).unwrap();
+        let accelerator = requested_baseline_plan(10, BaselineKind::AcceleratorOnly).unwrap();
         assert_eq!(accelerator[0].placement, Placement::Accelerator);
-        let heterogeneous =
-            requested_baseline_plan(10, BaselineKind::HeterogeneousStatic).unwrap();
+        let heterogeneous = requested_baseline_plan(10, BaselineKind::HeterogeneousStatic).unwrap();
         assert_eq!(heterogeneous[0].range, LogicalRange { start: 0, end: 5 });
         assert_eq!(heterogeneous[0].placement, Placement::Cpu);
         assert_eq!(heterogeneous[1].range, LogicalRange { start: 5, end: 10 });
