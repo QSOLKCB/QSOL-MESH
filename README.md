@@ -8,9 +8,9 @@ Initial CLI: `mesh inspect`, `mesh calibrate`, `mesh plan`, `mesh run`, `mesh ve
 
 Human-readable explanations live at the repository root. Normative automated-agent authority lives under `machine/`.
 
-## Phase 1 CPU bring-up
+## Phase 1 CPU and CUDA bring-up
 
-The first executable workload is deliberately tiny and dependency-free:
+The first executable workload is deliberately tiny and dependency-free on the CPU path:
 
 ```sh
 mesh inspect --json
@@ -20,13 +20,30 @@ mesh verify smoke --items 100000 --workers 8 --json
 
 `mesh-smoke-v1` procedurally maps logical IDs to integer values, partitions only contiguous ranges, reduces worker partials in worker-index order, and verifies every run against the scalar reference. It is correctness scaffolding, not a performance benchmark.
 
+An experimental single-device NVIDIA CUDA executor is now also available. Build its real CUDA worker on a CUDA-capable host with:
+
+```sh
+bash scripts/build-cuda-helper.sh
+```
+
+Then run or verify the same smoke workload on device 0:
+
+```sh
+mesh run smoke-cuda --items 100000 --device 0 --json
+mesh verify smoke-cuda --items 100000 --device 0 --json
+```
+
+The Rust launcher does not accept a requested GPU as evidence by itself. It requires a successful CUDA helper process, observed CUDA runtime/device metadata, exact request matching, and checksum equality with the independently computed scalar smoke oracle before emitting `verified:true`. Default GitHub CI does not claim CUDA execution because it has no retained CUDA-capable runner evidence.
+
+See `NVIDIA-EXECUTOR.md` and `machine/nvidia-executor-contract.v1.json`.
+
 ## Phase 2 GALAXY adapter boundary
 
 The first external adapter now has a machine-readable contract plus reusable range/reduction primitives. MESH can split a GALAXY logical population into complete half-open ranges, emit executor-local regeneration requests, accept compact range-bound `u64` partials in any completion order, validate exact coverage, reduce deterministically, and fail closed on oracle disagreement.
 
 GALAXY remains the semantic authority. QSOL-MESH contains no copied GALAXY address mixer, particle generation, physics, projection math, or GPU kernels.
 
-The adapter pins the frozen GALAXY v0.4.0 source identity and archived CPU oracle checksums. Static CPU-only, accelerator-only, and heterogeneous requested geometries are available as planning primitives, but requested accelerator placement is **not** execution evidence. Live partitioned GALAXY parity and GPU/heterogeneous baselines remain gated on a GALAXY-owned range entrypoint and the real Phase 1 accelerator executor.
+The adapter pins the frozen GALAXY v0.4.0 source identity and archived CPU oracle checksums. Static CPU-only, accelerator-only, and heterogeneous requested geometries are available as planning primitives, but requested accelerator placement is **not** execution evidence. Live partitioned GALAXY parity remains gated on a GALAXY-owned range entrypoint. GALAXY GPU/heterogeneous baselines additionally require a GALAXY-owned accelerator execution path and retained CUDA-host execution evidence.
 
 See `GALAXY-ADAPTER.md` and `machine/workloads/galaxy-v0.4.0.json`.
 
@@ -67,6 +84,6 @@ mesh calibrate smoke \
 
 The planner keeps the canonical one-worker plan unless another measured candidate beats it by more than the configured margin. Any noncanonical calibration winner must then repeat that win against canonical on the full requested work before promotion. Otherwise canonical is retained or restored.
 
-Current executable calibration is CPU-only because QSOL-MESH still has no real accelerator executor. The contract already separates `service_ns`, `setup_ns`, and `transfer_ns`, but accelerator cost evidence remains unavailable rather than synthesized.
+Current calibrated planning remains CPU-only even though the smoke CUDA executor now exists. Accelerator `service_ns`, `setup_ns`, and `transfer_ns` measurements have not yet been integrated into the calibrator, so accelerator cost evidence remains unavailable rather than synthesized.
 
 See `CALIBRATED-PLANNING.md` and `machine/calibrated-plan-contract.v1.json`.
