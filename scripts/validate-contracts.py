@@ -417,8 +417,8 @@ split_source = (ROOT / "crates/mesh-core/src/static_split.rs").read_text(encodin
 for token in (
     "run_static_smoke_partition",
     "static-cpu-cuda-partition-v1",
-    '"concurrent":false',
-    '"adaptive":false',
+    '\\"concurrent\\":false',
+    '\\"adaptive\\":false',
     "partition-order-wrapping-u64",
     "CPU static-split checksum does not match assigned range oracle",
     "CUDA static-split checksum does not match assigned range oracle",
