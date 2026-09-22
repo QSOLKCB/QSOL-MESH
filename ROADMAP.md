@@ -11,7 +11,10 @@
 ## Phase 1 — deterministic dual-executor proof
 - [x] MESH-owned synthetic deterministic bring-up workload.
 - [x] CPU executor.
-- [ ] Experimental NVIDIA accelerator executor.
+- [x] Experimental NVIDIA accelerator executor.
+  - [x] Real single-device CUDA smoke kernel/helper and Rust launcher.
+  - [x] Requested/observed/effective CUDA receipt with exact scalar-oracle verification.
+  - [ ] Retained execution receipt from a CUDA-capable host.
 - [ ] Static CPU/GPU partition only.
 - [ ] Concurrent execution.
 - [x] Deterministic reduction independent of completion order.
@@ -27,26 +30,26 @@
   - [ ] Live partitioned parity requires a GALAXY-owned range entrypoint.
 - [ ] CPU-only/GPU-only/heterogeneous baselines.
   - [x] Archived CPU-only evidence is bound and static requested baseline geometries are defined.
-  - [ ] GPU-only and heterogeneous execution evidence require the real Phase 1 accelerator executor.
+  - [ ] GPU-only and heterogeneous execution evidence require a GALAXY-owned accelerator path plus retained CUDA-host evidence.
 
 ## Phase 3 — memory broker
 - [ ] Persistent accelerator allocation pool.
   - [x] Persistent accelerator-local pool planning, lifetime, and reuse contract.
-  - [ ] Physical accelerator allocation requires the real accelerator executor.
+  - [ ] Physical persistent pool is not provided by the single-checksum CUDA worker.
 - [ ] Bounded pinned-host staging.
   - [x] Bounded staging plan, peak-live enforcement, and reuse contract.
-  - [ ] Physical OS-backed pinned allocation remains backend-owned.
+  - [ ] Physical OS/CUDA-backed pinned staging remains backend-owned.
 - [x] Explicit transfer/event graph.
 - [x] Memory-plan receipts.
 - [ ] Stream/reduce/discard where permitted.
   - [x] Constant-size reusable stream/reduce/discard planning template.
-  - [ ] Runtime execution remains gated on a physical backend.
+  - [ ] Runtime streaming execution remains a later executor rung.
 
 ## Phase 4 — calibrated planning
 - [ ] Measure CPU/GPU service and setup/transfer costs.
   - [x] Real host CPU smoke service measurements with explicit cost scope.
   - [x] Versioned setup/service/transfer cost evidence fields.
-  - [ ] Accelerator setup/service/transfer measurement requires the real accelerator executor.
+  - [ ] CUDA executor timing/setup/transfer measurement has not yet been integrated into the calibrator.
 - [x] Topology-derived bounded candidate plans.
 - [x] Deterministic search and full-work confirmation.
 - [x] Keep canonical on near ties.

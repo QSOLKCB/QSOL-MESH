@@ -13,6 +13,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: python3 scripts/validate-contracts.py
+      - name: Validate CUDA build script syntax
+        run: bash -n scripts/build-cuda-helper.sh
       - name: Validate JSON syntax independently
         run: |
           python3 - <<'PY'
@@ -48,6 +50,47 @@ jobs:
         run: |
           cargo run -q -p qsol-mesh-cli --locked -- inspect --json | grep -q '"available_parallelism":'
           cargo run -q -p qsol-mesh-cli --locked -- run smoke --items 1000 --workers 4 --json > /tmp/mesh-smoke.json
+          if cargo run -q -p qsol-mesh-cli --locked -- run smoke-cuda --items 1000 --device 0 --json > /tmp/mesh-cuda-stdout 2> /tmp/mesh-cuda-stderr; then
+            echo "missing canonical CUDA worker unexpectedly produced successful execution" >&2
+            exit 1
+          fi
+          test ! -s /tmp/mesh-cuda-stdout
+          grep -q 'CUDA helper launch failed' /tmp/mesh-cuda-stderr
+          cat > /tmp/mesh-cuda-forged-helper <<'SH'
+          #!/usr/bin/env bash
+          printf 'qsol.mesh.cuda-smoke-worker.v1\titems=1000\tchecksum=d3886842145b489c\tblocks=1\tthreads_per_block=256\tdevice=0\tcompute_major=12\tcompute_minor=0\tcuda_runtime=13020\tcuda_driver=13020\n'
+          SH
+          chmod +x /tmp/mesh-cuda-forged-helper
+          if cargo run -q -p qsol-mesh-cli --locked -- run smoke-cuda --items 1000 --device 0 --helper /tmp/mesh-cuda-forged-helper --json > /tmp/mesh-cuda-forged-stdout 2> /tmp/mesh-cuda-forged-stderr; then
+            echo "caller-selected forged CUDA helper unexpectedly produced successful execution" >&2
+            exit 1
+          fi
+          test ! -s /tmp/mesh-cuda-forged-stdout
+          grep -q 'helper overrides are not admitted' /tmp/mesh-cuda-forged-stderr
+          if QSOL_MESH_CUDA_HELPER=/tmp/mesh-cuda-forged-helper cargo run -q -p qsol-mesh-cli --locked -- run smoke-cuda --items 1000 --device 0 --json > /tmp/mesh-cuda-env-stdout 2> /tmp/mesh-cuda-env-stderr; then
+            echo "environment-selected forged CUDA helper unexpectedly produced successful execution" >&2
+            exit 1
+          fi
+          test ! -s /tmp/mesh-cuda-env-stdout
+          grep -q 'CUDA helper launch failed' /tmp/mesh-cuda-env-stderr
+          rm -f /tmp/mesh-cuda-cwd-forged-executed
+          mkdir -p /tmp/repro/target
+          cat > /tmp/repro/target/mesh-cuda-smoke <<'SH'
+          #!/usr/bin/env bash
+          touch /tmp/mesh-cuda-cwd-forged-executed
+          printf 'qsol.mesh.cuda-smoke-worker.v1\titems=1000\tchecksum=d3886842145b489c\tblocks=1\tthreads_per_block=256\tdevice=0\tcompute_major=12\tcompute_minor=0\tcuda_runtime=13020\tcuda_driver=13020\n'
+          SH
+          chmod +x /tmp/repro/target/mesh-cuda-smoke
+          (
+            cd /tmp/repro
+            if "$GITHUB_WORKSPACE/target/debug/mesh" run smoke-cuda --items 1000 --device 0 --json > /tmp/mesh-cuda-cwd-stdout 2> /tmp/mesh-cuda-cwd-stderr; then
+              echo "caller-CWD CUDA helper unexpectedly produced successful execution" >&2
+              exit 1
+            fi
+          )
+          test ! -e /tmp/mesh-cuda-cwd-forged-executed
+          test ! -s /tmp/mesh-cuda-cwd-stdout
+          grep -q 'CUDA helper launch failed' /tmp/mesh-cuda-cwd-stderr
           python3 - <<'PY'
           import json
           from pathlib import Path

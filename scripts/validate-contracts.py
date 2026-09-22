@@ -11,6 +11,7 @@ EXPECTED = {
     "memory-model.v1.json":"qsol.mesh.memory-model.v1",
     "memory-plan-contract.v1.json":"qsol.mesh.memory-plan-contract.v1",
     "calibrated-plan-contract.v1.json":"qsol.mesh.calibrated-plan-contract.v1",
+    "nvidia-executor-contract.v1.json":"qsol.mesh.nvidia-executor-contract.v1",
     "evidence-contract.v1.json":"qsol.mesh.evidence-contract.v1",
 }
 loaded = {}
@@ -225,10 +226,141 @@ for forbidden in ("RTX", "GeForce", "A100", "H100", "product_name", "model_name"
     if forbidden in planner_source:
         raise SystemExit(f"calibrated planner contains hardware-name performance policy: {forbidden}")
 
+nvidia = loaded["nvidia-executor-contract.v1.json"]
+if nvidia["executor_id"] != "qsol-mesh-cuda-smoke-v1":
+    raise SystemExit("NVIDIA executor identity drift")
+if nvidia["backend"] != "nvidia-cuda":
+    raise SystemExit("NVIDIA executor backend drift")
+if nvidia["worker_protocol"] != "qsol.mesh.cuda-smoke-worker.v1":
+    raise SystemExit("CUDA worker protocol drift")
+if nvidia["workload_identity"] != "mesh-smoke-v1":
+    raise SystemExit("CUDA executor workload identity drift")
+if nvidia["execution_contract"]["real_cuda_kernel_required"] is not True:
+    raise SystemExit("CUDA executor no longer requires real kernel execution")
+if nvidia["execution_contract"]["host_scalar_fallback_inside_cuda_worker_allowed"] is not False:
+    raise SystemExit("CUDA worker scalar fallback became admissible")
+for key in (
+    "worker_exit_success_required",
+    "single_exact_protocol_line_required",
+    "protocol_may_have_at_most_one_line_terminator",
+    "verified_run_provenance_must_be_launcher_issued",
+    "logical_id_iteration_must_not_wrap_u64",
+):
+    if nvidia["execution_contract"].get(key) is not True:
+        raise SystemExit(f"CUDA execution contract weakened: {key}")
+if nvidia["execution_contract"]["verified_worker_location"] != "application-target-directory/mesh-cuda-smoke":
+    raise SystemExit("verified CUDA worker location drift")
+if nvidia["execution_contract"]["verified_worker_resolution"] != "canonicalized-current-executable-nearest-target-ancestor":
+    raise SystemExit("verified CUDA worker resolution drift")
+if nvidia["execution_contract"]["caller_working_directory_may_influence_verified_worker_resolution"] is not False:
+    raise SystemExit("caller CWD became CUDA worker resolution authority")
+for key in (
+    "verified_worker_override_allowed",
+    "verified_worker_environment_override_allowed",
+    "arbitrary_helper_stdout_may_issue_verified_receipt",
+):
+    if nvidia["execution_contract"].get(key) is not False:
+        raise SystemExit(f"CUDA verified-worker override boundary weakened: {key}")
+if nvidia["build_contract"]["verified_output"] != "target/mesh-cuda-smoke":
+    raise SystemExit("CUDA verified build output drift")
+if nvidia["build_contract"]["alternate_verified_output_allowed"] is not False:
+    raise SystemExit("alternate CUDA verified build output became admissible")
+if nvidia["trust_boundary"] != {
+    "caller_selected_executables_are_execution_evidence": False,
+    "caller_working_directory_is_execution_authority": False,
+    "application_anchored_canonical_worker_is_required": True,
+    "local_filesystem_and_build_environment_are_outside_this_contract": True,
+    "canonical_path_is_not_cryptographic_binary_attestation": True,
+}:
+    raise SystemExit("CUDA worker trust boundary drift")
+if nvidia["verification_contract"] != {
+    "kind": "mesh-smoke-v1-scalar-reference-equality",
+    "rust_launcher_recomputes_scalar_reference": True,
+    "worker_checksum_must_equal_scalar_reference": True,
+    "verified_receipt_requires_oracle_pass": True,
+    "receipt_revalidates_resolved_worker_path": True,
+}:
+    raise SystemExit("CUDA executor verification contract drift")
+if nvidia["observation_contract"]["helper_reported_topology_is_independently_attested"] is not False:
+    raise SystemExit("helper-reported CUDA topology was overstated as attested")
+if nvidia["ci_boundary"]["default_github_runner_has_cuda_execution_evidence"] is not False:
+    raise SystemExit("default CI falsely claims CUDA execution evidence")
+if nvidia["ci_boundary"]["ci_may_claim_gpu_execution_without_cuda_capable_runner"] is not False:
+    raise SystemExit("CI CUDA evidence boundary weakened")
+
+accelerator_source = (ROOT / "crates/mesh-core/src/accelerator.rs").read_text(encoding="utf-8")
+for token in (
+    "qsol.mesh.cuda-smoke-worker.v1",
+    "CANONICAL_CUDA_HELPER_FILENAME",
+    "canonical_cuda_helper_path",
+    "std::env::current_exe",
+    "std::fs::canonicalize",
+    "running mesh executable is outside the supported application target tree",
+    "CUDA smoke run was not produced by the canonical worker path",
+    "pub fn run_cuda_smoke(",
+    "CUDA checksum does not match scalar smoke oracle",
+    "smoke_reference",
+    "cuda_runtime_version",
+    "cuda_driver_version",
+    "helper-reported-topology-not-performance-evidence",
+    "strip_suffix",
+    "CUDA worker output must contain exactly one protocol line",
+    "fn validate_cuda_worker_observation",
+):
+    if token not in accelerator_source:
+        raise SystemExit(f"CUDA Rust launcher lost required boundary: {token}")
+
+cuda_source = (ROOT / "accelerators/cuda/mesh_smoke_cuda.cu").read_text(encoding="utf-8")
+for token in (
+    "__global__ void smoke_kernel",
+    "const unsigned long long remaining = items - id",
+    "if (remaining <= stride)",
+    "cudaSetDevice",
+    "cudaGetDeviceProperties",
+    "cudaRuntimeGetVersion",
+    "cudaDriverGetVersion",
+    "cudaMalloc",
+    "atomicAdd",
+    "cudaDeviceSynchronize",
+    "cudaMemcpy",
+    "qsol.mesh.cuda-smoke-worker.v1",
+):
+    if token not in cuda_source:
+        raise SystemExit(f"CUDA worker lost required execution primitive: {token}")
+if "for (unsigned long long id = tid; id < items; id += stride)" in cuda_source:
+    raise SystemExit("CUDA worker reintroduced wrapping logical-ID for-loop")
+if "pub fn validate_cuda_worker_observation" in accelerator_source:
+    raise SystemExit("raw CUDA observation validation became a public run constructor")
+if "pub fn run_cuda_smoke_with_helper" in accelerator_source:
+    raise SystemExit("caller-selected helper execution became a public verified-run constructor")
+if 'Path::new("target/mesh-cuda-smoke")' in accelerator_source:
+    raise SystemExit("verified CUDA worker resolution regressed to caller-CWD-relative path")
+if "pub observation: CudaWorkerObservation" in accelerator_source or "pub reference: u64" in accelerator_source:
+    raise SystemExit("CUDA run provenance fields became publicly constructible")
+
+cli_source = (ROOT / "crates/mesh-cli/src/main.rs").read_text(encoding="utf-8")
+if "QSOL_MESH_CUDA_HELPER" in cli_source:
+    raise SystemExit("environment helper override re-entered verified CUDA CLI")
+if "--helper PATH" in cli_source:
+    raise SystemExit("verified CUDA usage re-exposed caller-selected helper path")
+if "--helper overrides are not admitted for verified CUDA execution" not in cli_source:
+    raise SystemExit("verified CUDA CLI lost explicit helper-override rejection")
+
+build_script = (ROOT / "scripts/build-cuda-helper.sh").read_text(encoding="utf-8")
+for token in (
+    "nvcc",
+    "accelerators/cuda/mesh_smoke_cuda.cu",
+    'OUT="$ROOT/target/mesh-cuda-smoke"',
+    "alternate output paths are not admitted for the verified worker",
+):
+    if token not in build_script:
+        raise SystemExit(f"CUDA build script lost required binding: {token}")
+
 agents = (ROOT / "AGENTS.md").read_text(encoding="utf-8")
 for contract_name in (
     "machine/memory-plan-contract.v1.json",
     "machine/calibrated-plan-contract.v1.json",
+    "machine/nvidia-executor-contract.v1.json",
 ):
     if contract_name not in agents:
         raise SystemExit(f"AGENTS.md does not expose normative contract: {contract_name}")
