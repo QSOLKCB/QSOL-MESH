@@ -2,6 +2,7 @@
   "schema": "qsol.mesh.calibrated-plan-contract.v1",
   "contract_version": "1.0.0",
   "plan_identity": "mesh-calibration-smoke-v1",
+  "executed_workload_identity": "mesh-smoke-v1",
   "candidate_contract": {
     "maximum_candidates": 4,
     "candidate_ids_are_deterministic_contiguous_indices": true,
@@ -15,6 +16,8 @@
     "measured_evidence_required": true,
     "verified_checksum_required": true,
     "all_calibration_candidates_must_be_measured": true,
+    "requested_repeat_count_must_be_recorded": true,
+    "effective_cpu_workers_must_be_recorded": true,
     "cost_fields": [
       "service_ns",
       "setup_ns",
@@ -24,6 +27,7 @@
     "cpu_smoke_service_scope": "end-to-end-run-including-thread-lifecycle",
     "cpu_smoke_setup_ns": "zero-because-not-separately-modeled",
     "cpu_smoke_transfer_ns": "zero-because-no-cross-domain-transfer",
+    "cpu_smoke_nonzero_setup_or_transfer_is_admissible": false,
     "accelerator_measurement_status": "pending-real-accelerator-executor"
   },
   "search_contract": {
@@ -37,7 +41,8 @@
     "full_work_must_not_be_smaller_than_calibration_work": true,
     "canonical_confirmation_required": true,
     "provisional_noncanonical_confirmation_required": true,
-    "confirmation_checksum_must_match_canonical": true
+    "confirmation_checksum_must_match_canonical": true,
+    "unexpected_confirmation_observations_allowed": false
   },
   "near_tie_contract": {
     "default_basis_points": 500,
@@ -48,12 +53,18 @@
   "receipt_contract": {
     "schema": "qsol.mesh.calibrated-plan-receipt.v1",
     "must_include_existing_evidence_sections": true,
+    "must_record_executed_workload_identity": true,
+    "must_keep_plan_identity_separate_from_workload_identity": true,
+    "must_record_requested_repeat_count": true,
     "must_record_observed_topology": true,
     "must_record_candidate_set": true,
     "must_record_calibration_observations": true,
+    "must_record_effective_cpu_workers_per_observation": true,
     "must_record_full_work_confirmation": true,
     "must_record_provisional_and_final_selection": true,
-    "must_record_near_tie_margin": true
+    "must_record_selected_requested_and_effective_cpu_workers": true,
+    "must_record_near_tie_margin": true,
+    "serializer_must_revalidate_plan_before_verified_status": true
   },
   "claim_boundary": "Host-specific measured planning evidence only. No hardware model name is performance authority. CPU smoke measurements are real host measurements; accelerator service/setup/transfer evidence remains unavailable until a real accelerator executor supplies observed measurements."
 }
