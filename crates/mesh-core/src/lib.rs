@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
+pub mod galaxy;
+
 use std::thread;
 
 pub const CONTRACT_SCHEMA: &str = "qsol.mesh.contract.v1";

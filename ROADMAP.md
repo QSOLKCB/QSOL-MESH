@@ -19,11 +19,15 @@
 - [x] No adaptive scheduling.
 
 ## Phase 2 — GALAXY adapter
-- [ ] Adapter contract without copying GALAXY semantics into MESH.
-- [ ] Logical-ID range partitioning and local regeneration.
-- [ ] Compact partial reductions.
+- [x] Adapter contract without copying GALAXY semantics into MESH.
+- [x] Logical-ID range partitioning and executor-local regeneration requests.
+- [x] Compact partial reductions.
 - [ ] Exact GALAXY oracle parity.
+  - [x] Frozen v0.4.0 authority and archived CPU oracle checksums are pinned exactly.
+  - [ ] Live partitioned parity requires a GALAXY-owned range entrypoint.
 - [ ] CPU-only/GPU-only/heterogeneous baselines.
+  - [x] Archived CPU-only evidence is bound and static requested baseline geometries are defined.
+  - [ ] GPU-only and heterogeneous execution evidence require the real Phase 1 accelerator executor.
 
 ## Phase 3 — memory broker
 - [ ] Persistent accelerator allocation pool.
