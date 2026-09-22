@@ -7,11 +7,7 @@ use qsol_mesh_core::{
     planner::{calibrate_cpu_smoke_host, calibrated_plan_receipt_json, DEFAULT_NEAR_TIE_BPS},
     run_smoke, Command, CONTRACT_SCHEMA, CONTRACT_VERSION, SMOKE_WORKLOAD_ID,
 };
-use std::{
-    env,
-    path::PathBuf,
-    process::ExitCode,
-};
+use std::{env, path::PathBuf, process::ExitCode};
 
 fn usage() -> &'static str {
     "Usage:\n  mesh inspect [--json]\n  mesh run smoke [--items N] [--workers N] [--json]\n  mesh verify smoke [--items N] [--workers N] [--json]\n  mesh run smoke-cuda [--items N] [--device N] [--helper PATH] [--json]\n  mesh verify smoke-cuda [--items N] [--device N] [--helper PATH] [--json]\n  mesh calibrate smoke [--calibration-items N] [--full-items N] [--repeats N] [--near-tie-bps N] [--json]\n  mesh plan memory [--total-bytes N] [--chunk-bytes N] [--pinned-limit-bytes N] [--accelerator-limit-bytes N] [--partial-bytes N] [--json]\n  mesh <calibrate|plan|receipt> [--json]\n"
