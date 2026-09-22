@@ -109,3 +109,12 @@ This executor deliberately does not yet claim:
 - multi-GPU execution.
 
 Those are subsequent rungs after the single-device executor boundary is stable.
+
+
+## Framing, provenance, and maximum-range hardening
+
+The worker protocol permits either no line terminator, one LF, or one CRLF after the protocol record. Additional blank lines or any embedded CR/LF are rejected. This preserves the contract's single-exact-protocol-line requirement.
+
+A verified `CudaSmokeRun` is an opaque launcher-issued value. Its provenance fields are private, and raw observation validation is internal to the accelerator module. External callers can inspect a launched run through read-only accessors, but cannot construct a receipt-capable run from a hand-built observation.
+
+The CUDA logical-ID loop is also safe at the full admitted `u64` workload domain. After processing an ID, the kernel compares the remaining distance with the stride before incrementing. It never performs an `id += stride` that can wrap through `ULLONG_MAX` and revisit earlier IDs.
