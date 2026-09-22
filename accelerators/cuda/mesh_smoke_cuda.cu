@@ -22,6 +22,7 @@ __device__ __forceinline__ unsigned long long mix64(unsigned long long x) {
 }
 
 __global__ void smoke_kernel(
+    unsigned long long start,
     unsigned long long items,
     unsigned long long* checksum
 ) {
@@ -31,14 +32,15 @@ __global__ void smoke_kernel(
         static_cast<unsigned long long>(gridDim.x) * blockDim.x;
 
     unsigned long long local = 0;
-    unsigned long long id = tid;
-    while (id < items) {
+    unsigned long long offset = tid;
+    while (offset < items) {
+        const unsigned long long id = start + offset;
         local += mix64(id ^ kSmokeSeed);
-        const unsigned long long remaining = items - id;
+        const unsigned long long remaining = items - offset;
         if (remaining <= stride) {
             break;
         }
-        id += stride;
+        offset += stride;
     }
     atomicAdd(checksum, local);
 }
@@ -86,13 +88,22 @@ int fail_cuda(const char* operation, cudaError_t error) {
 }  // namespace
 
 int main(int argc, char** argv) {
+    unsigned long long start = 0;
     unsigned long long items = 0;
     int device_ordinal = 0;
+    bool saw_start = false;
     bool saw_items = false;
     bool saw_device = false;
 
     for (int index = 1; index < argc; ++index) {
-        if (std::strcmp(argv[index], "--items") == 0) {
+        if (std::strcmp(argv[index], "--start") == 0) {
+            if (saw_start || index + 1 >= argc || !parse_u64(argv[index + 1], &start)) {
+                std::fprintf(stderr, "mesh-cuda-smoke: invalid --start\n");
+                return 2;
+            }
+            saw_start = true;
+            ++index;
+        } else if (std::strcmp(argv[index], "--items") == 0) {
             if (saw_items || index + 1 >= argc || !parse_u64(argv[index + 1], &items)) {
                 std::fprintf(stderr, "mesh-cuda-smoke: invalid --items\n");
                 return 2;
@@ -114,6 +125,10 @@ int main(int argc, char** argv) {
 
     if (!saw_items || items == 0) {
         std::fprintf(stderr, "mesh-cuda-smoke: --items must be greater than zero\n");
+        return 2;
+    }
+    if (start > std::numeric_limits<unsigned long long>::max() - items) {
+        std::fprintf(stderr, "mesh-cuda-smoke: requested logical range overflows u64\n");
         return 2;
     }
     if (device_ordinal < 0) {
@@ -174,7 +189,7 @@ int main(int argc, char** argv) {
         return fail_cuda("cudaMemset", status);
     }
 
-    smoke_kernel<<<blocks, kThreadsPerBlock>>>(items, device_checksum);
+    smoke_kernel<<<blocks, kThreadsPerBlock>>>(start, items, device_checksum);
     status = cudaGetLastError();
     if (status != cudaSuccess) {
         cudaFree(device_checksum);
@@ -204,17 +219,33 @@ int main(int argc, char** argv) {
         return fail_cuda("cudaFree", status);
     }
 
-    std::printf(
-        "qsol.mesh.cuda-smoke-worker.v1\titems=%llu\tchecksum=%016llx\tblocks=%u\tthreads_per_block=%u\tdevice=%d\tcompute_major=%d\tcompute_minor=%d\tcuda_runtime=%d\tcuda_driver=%d\n",
-        items,
-        checksum,
-        blocks,
-        kThreadsPerBlock,
-        device_ordinal,
-        properties.major,
-        properties.minor,
-        runtime_version,
-        driver_version
-    );
+    if (saw_start) {
+        std::printf(
+            "qsol.mesh.cuda-smoke-range-worker.v1\tstart=%llu\titems=%llu\tchecksum=%016llx\tblocks=%u\tthreads_per_block=%u\tdevice=%d\tcompute_major=%d\tcompute_minor=%d\tcuda_runtime=%d\tcuda_driver=%d\n",
+            start,
+            items,
+            checksum,
+            blocks,
+            kThreadsPerBlock,
+            device_ordinal,
+            properties.major,
+            properties.minor,
+            runtime_version,
+            driver_version
+        );
+    } else {
+        std::printf(
+            "qsol.mesh.cuda-smoke-worker.v1\titems=%llu\tchecksum=%016llx\tblocks=%u\tthreads_per_block=%u\tdevice=%d\tcompute_major=%d\tcompute_minor=%d\tcuda_runtime=%d\tcuda_driver=%d\n",
+            items,
+            checksum,
+            blocks,
+            kThreadsPerBlock,
+            device_ordinal,
+            properties.major,
+            properties.minor,
+            runtime_version,
+            driver_version
+        );
+    }
     return 0;
 }
