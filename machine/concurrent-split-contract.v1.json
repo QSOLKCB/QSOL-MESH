@@ -51,6 +51,11 @@
     "ci_may_claim_cuda_kernel_overlap_without_cuda_capable_measurement": false,
     "ci_may_claim_concurrent_heterogeneous_execution_without_cuda_capable_runner": false
   },
-  "evidence_status": "implementation-complete-retained-cuda-host-concurrent-receipt-pending",
-  "claim_boundary": "Concurrent dispatch of the fixed CPU/CUDA smoke partition only. CPU range execution runs in a spawned task while the canonical CUDA range executor call is active before CPU join. Reduction remains deterministic and non-adaptive. Kernel-level overlap is not measured or claimed, and this is not performance evidence."
+  "evidence_status": "retained-cuda-host-concurrent-receipt-bound-to-58301da12f241ae823f70174a3028319abe9a36f",
+  "claim_boundary": "Concurrent dispatch of the fixed CPU/CUDA smoke partition only. CPU range execution runs in a spawned task while the canonical CUDA range executor call is active before CPU join. Reduction remains deterministic and non-adaptive. Kernel-level overlap is not measured or claimed, and this is not performance evidence.",
+  "retained_evidence": {
+    "manifest": "evidence/phase1-cuda-host-2026-09-23/manifest.json",
+    "source_commit": "58301da12f241ae823f70174a3028319abe9a36f",
+    "receipt": "evidence/phase1-cuda-host-2026-09-23/smoke-concurrent-verify-100000-40000.json"
+  }
 }
