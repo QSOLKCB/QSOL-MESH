@@ -245,7 +245,9 @@ fn validate_observations(
         match candidate.backend {
             BackendKind::Cpu => {
                 if observation.setup_ns != 0 || observation.transfer_ns != 0 {
-                    return Err("CPU smoke observations require zero separate setup and transfer cost");
+                    return Err(
+                        "CPU smoke observations require zero separate setup and transfer cost",
+                    );
                 }
                 let effective_as_u64 =
                     u64::try_from(observation.effective_cpu_workers).unwrap_or(u64::MAX);
@@ -823,7 +825,7 @@ mod tests {
                 vec![observation(0, 1_000, 10_000)],
                 100,
                 1_000,
-            1,
+                1,
                 500,
             ),
             Err("candidate checksum does not match canonical result")
@@ -842,7 +844,7 @@ mod tests {
                 vec![observation(0, 1_000, 10_000)],
                 100,
                 1_000,
-            1,
+                1,
                 500,
             ),
             Err("unverified cost observation is not admissible")
