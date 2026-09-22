@@ -130,6 +130,18 @@ int main(int argc, char** argv) {
         return 3;
     }
 
+    int runtime_version = 0;
+    status = cudaRuntimeGetVersion(&runtime_version);
+    if (status != cudaSuccess) {
+        return fail_cuda("cudaRuntimeGetVersion", status);
+    }
+
+    int driver_version = 0;
+    status = cudaDriverGetVersion(&driver_version);
+    if (status != cudaSuccess) {
+        return fail_cuda("cudaDriverGetVersion", status);
+    }
+
     const unsigned long long required_blocks =
         1ULL + (items - 1ULL) / static_cast<unsigned long long>(kThreadsPerBlock);
     const unsigned long long occupancy_blocks =
@@ -187,12 +199,16 @@ int main(int argc, char** argv) {
     }
 
     std::printf(
-        "qsol.mesh.cuda-smoke-worker.v1\titems=%llu\tchecksum=%016llx\tblocks=%u\tthreads_per_block=%u\tdevice=%d\n",
+        "qsol.mesh.cuda-smoke-worker.v1\titems=%llu\tchecksum=%016llx\tblocks=%u\tthreads_per_block=%u\tdevice=%d\tcompute_major=%d\tcompute_minor=%d\tcuda_runtime=%d\tcuda_driver=%d\n",
         items,
         checksum,
         blocks,
         kThreadsPerBlock,
-        device_ordinal
+        device_ordinal,
+        properties.major,
+        properties.minor,
+        runtime_version,
+        driver_version
     );
     return 0;
 }
