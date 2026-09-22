@@ -5,6 +5,7 @@ pub mod galaxy;
 pub mod memory;
 pub mod planner;
 pub mod static_split;
+pub mod concurrent_split;
 
 use std::thread;
 
