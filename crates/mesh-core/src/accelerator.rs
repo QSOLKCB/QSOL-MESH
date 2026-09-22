@@ -12,6 +12,7 @@ use std::{path::Path, process::Command as ProcessCommand};
 pub const CUDA_WORKER_PROTOCOL: &str = "qsol.mesh.cuda-smoke-worker.v1";
 pub const CUDA_EXECUTOR_ID: &str = "qsol-mesh-cuda-smoke-v1";
 pub const CUDA_SMOKE_RECEIPT_SCHEMA: &str = "qsol.mesh.cuda-smoke-receipt.v1";
+pub const CANONICAL_CUDA_HELPER_PATH: &str = "target/mesh-cuda-smoke";
 pub const CUDA_SMOKE_CLAIM_BOUNDARY: &str =
     "experimental-nvidia-cuda-smoke-single-device-helper-reported-topology-not-performance-evidence";
 
@@ -135,7 +136,7 @@ fn validate_cuda_worker_observation(
     })
 }
 
-pub fn run_cuda_smoke_with_helper(
+fn run_cuda_smoke_with_helper(
     helper_path: &Path,
     items: u64,
     device_ordinal: u32,
@@ -171,6 +172,14 @@ pub fn run_cuda_smoke_with_helper(
     validate_cuda_worker_observation(items, device_ordinal, observation).map_err(str::to_owned)
 }
 
+pub fn run_cuda_smoke(items: u64, device_ordinal: u32) -> Result<CudaSmokeRun, String> {
+    run_cuda_smoke_with_helper(
+        Path::new(CANONICAL_CUDA_HELPER_PATH),
+        items,
+        device_ordinal,
+    )
+}
+
 fn json_escape(value: &str) -> String {
     let mut escaped = String::with_capacity(value.len());
     for character in value.chars() {
@@ -192,7 +201,6 @@ fn json_escape(value: &str) -> String {
 
 pub fn cuda_smoke_receipt_json(
     command: &str,
-    helper_path: &Path,
     run: CudaSmokeRun,
 ) -> Result<String, &'static str> {
     if command != "run" && command != "verify" {
@@ -208,7 +216,7 @@ pub fn cuda_smoke_receipt_json(
         return Err("CUDA smoke run derived state mismatch");
     }
 
-    let helper = json_escape(&helper_path.to_string_lossy());
+    let helper = json_escape(CANONICAL_CUDA_HELPER_PATH);
     let observation = run.observation();
 
     Ok(format!(
@@ -294,12 +302,8 @@ mod tests {
     }
 
     #[test]
-    fn missing_helper_fails_closed() {
-        let result = run_cuda_smoke_with_helper(
-            Path::new("/definitely/not/a/qsol-mesh-cuda-helper"),
-            1_000,
-            0,
-        );
+    fn missing_canonical_helper_fails_closed() {
+        let result = run_cuda_smoke(1_000, 0);
         assert!(result.is_err());
     }
 
@@ -307,8 +311,7 @@ mod tests {
     fn receipt_requires_revalidated_cuda_execution() {
         let observation = parse_cuda_worker_line(&valid_line()).unwrap();
         let run = validate_cuda_worker_observation(1_000, 0, observation).unwrap();
-        let receipt =
-            cuda_smoke_receipt_json("run", Path::new("target/mesh-cuda-smoke"), run).unwrap();
+        let receipt = cuda_smoke_receipt_json("run", run).unwrap();
         for section in [
             "\"source_identity\"",
             "\"workload_identity\"",
@@ -323,6 +326,7 @@ mod tests {
             assert!(receipt.contains(section));
         }
         assert!(receipt.contains("\"backend\":\"nvidia-cuda\""));
+        assert!(receipt.contains("\"helper_path\":\"target/mesh-cuda-smoke\""));
         assert!(receipt.contains("\"verified\":true"));
         assert!(receipt.contains("\"checksum\":\"d3886842145b489c\""));
     }
