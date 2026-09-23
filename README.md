@@ -158,5 +158,7 @@ candidates. Every phase restarts smoke IDs at zero; results reduce in phase orde
 The runtime admits at most 64 phases and 31 repeats, keeps canonical on near
 ties, and fails on execution or CUDA identity mismatch. Receipts embed per-phase
 calibration evidence and actual execution results. Existing Phase 3/4 captures
-do not claim Phase 5 hardware execution; its local capture script is
-`scripts/capture-phase5-adaptive.sh`. See `PHASE-RUNTIME.md`.
+do not claim Phase 5 hardware execution. A separate Phase 5 capture is now
+retained under `evidence/phase5-cuda-host-2026-09-23/`: every phase measured CUDA
+candidates and selected CPU execution, with zero plan changes. Its local capture
+script is `scripts/capture-phase5-adaptive.sh`. See `PHASE-RUNTIME.md`.
