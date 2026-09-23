@@ -57,7 +57,20 @@ streaming/calibration evidence gates. They do not establish Phase 5 execution.
 CPU tests exercise phase ordering and forced plan transitions; isolated CUDA
 fixtures check protocol and identity failure paths without claiming hardware.
 
-For a fresh Phase 5 hardware receipt, from a clean checkout on a CUDA host:
+The Phase 5 capture is retained under `evidence/phase5-cuda-host-2026-09-23/`
+and checked by `scripts/validate-retained-phase5-evidence.py`. It records the
+exact implementation commit `4ea2225658e8e2eba0a7ea91cba59b230637b200`,
+before its merge. Each of the three phases measured CPU, CUDA-only, and static
+heterogeneous candidates, then selected and executed the single-worker CPU plan.
+There were zero plan changes. This closes the capture gate without establishing
+selected CUDA phase execution or a hardware-observed plan transition.
+
+Calibration took 4.130932972 seconds in total; selected execution plus phase
+verification took 0.47176 milliseconds. The small workloads are dominated by
+calibration overhead. The retained validator checks integrity and receipt
+consistency without rerunning CUDA or independently attesting hardware identity.
+
+For another Phase 5 hardware receipt, from a clean checkout on a CUDA host:
 
 ```sh
 NVCC=/usr/bin/nvcc bash scripts/capture-phase5-adaptive.sh /tmp/mesh-phase5-evidence

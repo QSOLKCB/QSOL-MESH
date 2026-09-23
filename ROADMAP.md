@@ -73,6 +73,6 @@ Retained Phase 3/4 evidence: `evidence/phase3-4-cuda-host-2026-09-23/` (two host
 - [x] Fresh measured selection and full-work confirmation before each selected-plan execution.
 - [x] Per-phase scalar verification, ordered reduction, and receipts recording actual plan changes.
 - [x] Fail closed on execution or CUDA identity mismatch without fallback or partial verified receipts.
-- [ ] Retained Phase 5 CUDA-host execution receipt; Phase 3/4 captures do not satisfy this gate.
+- [x] Retained Phase 5 CUDA-host execution receipt at `evidence/phase5-cuda-host-2026-09-23/`: CUDA and static heterogeneous candidates measured before each phase; all selected executions CPU, zero plan changes. Phase 3/4 captures do not satisfy this gate.
 
 Deferred: dynamic work stealing, NUMA placement, multi-GPU, peer memory, managed-memory experiments, persistent calibration cache.
