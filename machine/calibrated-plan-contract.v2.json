@@ -22,7 +22,8 @@
     "cpu_service_ns": "run_smoke-end-to-end",
     "heterogeneous_service_ns": "run_static_smoke_partition-end-to-end",
     "heterogeneous_setup_transfer_separately_isolated": false,
-    "worker_topology_is_independently_attested": false
+    "worker_topology_is_independently_attested": false,
+    "cuda_identity_stable_across_all_samples_and_candidates": true
   },
   "selection": {
     "canonical_checksum_is_independent_scalar_oracle": true,
