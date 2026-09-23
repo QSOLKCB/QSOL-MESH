@@ -16,7 +16,16 @@ if [[ -n "$(git -C "$root" status --porcelain)" ]]; then
   exit 2
 fi
 
-bash "$root/scripts/build-cuda-stream-helper.sh"
+compiler="$(command -v -- "${NVCC:-nvcc}")" || {
+  echo "capture-phase3: selected NVCC executable not found" >&2
+  exit 2
+}
+compiler="$(realpath -- "$compiler")"
+if [[ ! -f "$compiler" || ! -x "$compiler" ]]; then
+  echo "capture-phase3: selected NVCC is not an executable file" >&2
+  exit 2
+fi
+NVCC="$compiler" bash "$root/scripts/build-cuda-stream-helper.sh"
 cargo build --manifest-path "$root/Cargo.toml" --release --locked -p qsol-mesh-cli
 mkdir -p "$output"
 output="$(cd "$output" && pwd)"
@@ -38,6 +47,10 @@ single = json.loads((directory / "one-chunk.json").read_text())
 for receipt, chunks in ((multi, 25), (single, 1)):
     if receipt["schema"] != "qsol.mesh.cuda-stream-receipt.v1":
         raise SystemExit("unexpected stream receipt schema")
+    if receipt["workload_identity"] != {"workload_id": "mesh-smoke-stream-v1", "workload_contract_version": "1.0.0"}:
+        raise SystemExit("unexpected staged-stream workload")
+    if receipt["requested_configuration"]["command"] != "verify":
+        raise SystemExit("undeclared stream activation")
     if not receipt["verification"]["verified"] or not receipt["memory_plan"]["physically_materialized"]:
         raise SystemExit("unverified physical streaming execution")
     if receipt["effective_execution"]["chunk_count"] != chunks:
@@ -51,7 +64,8 @@ PY
   printf 'captured_utc=%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
   uname -a
   rustc --version
-  nvcc --version
+  printf 'nvcc_path=%s\n' "$compiler"
+  "$compiler" --version
   nvidia-smi --query-gpu=name,uuid,driver_version,memory.total --format=csv,noheader
 } > "$output/environment.txt"
 (

@@ -194,7 +194,34 @@ if memory_plan["receipt_contract"]["schema"] != "qsol.mesh.memory-plan-receipt.v
     raise SystemExit("memory plan receipt schema drift")
 
 stream = loaded["cuda-stream-contract.v1.json"]
-if stream["workload_identity"] != "mesh-smoke-v1" or stream["worker_protocol"] != "qsol.mesh.cuda-stream-worker.v1":
+staged_workload = workloads["smoke-stream-v1.json"]
+if staged_workload["workload_id"] != "mesh-smoke-stream-v1" or staged_workload["workload_contract_version"] != "1.0.0":
+    raise SystemExit("staged stream workload identity drift")
+if staged_workload["computation_contract"] != {
+    "kind": "mesh-smoke-v1-contribution-and-wrapping-u64-sum",
+    "scalar_oracle": "mesh-smoke-v1",
+    "memory_semantics_inherited": False,
+}:
+    raise SystemExit("staged stream scalar oracle binding drift")
+if staged_workload["memory_contract"] != {
+    "per_item_materialization": True,
+    "materialization_scope": "current-chunk-only",
+    "temporary_state": "O(effective_chunk_items)",
+    "item_bytes_per_domain": 8,
+    "partial_bytes_per_domain": 8,
+    "domains": ["host-pinned", "accelerator-local"],
+    "declared_domain_budgets_required": True,
+    "budget_includes_partial_buffers": True,
+    "allocation_reuse_across_chunks": True,
+}:
+    raise SystemExit("staged stream memory semantics drift")
+if smoke["memory_contract"] != {"per_item_materialization": False, "temporary_state": "O(workers)"}:
+    raise SystemExit("procedural smoke workload memory semantics drift")
+if staged_workload["reduction_contract"] != {"kind": "chunk-index-order-wrapping-u64"} or staged_workload["verification_contract"] != {"kind": "scalar-reference-equality", "fail_closed": True}:
+    raise SystemExit("staged stream reduction or oracle drift")
+if stream["activation"] != "mesh-verify-smoke-stream":
+    raise SystemExit("CUDA stream activation drift")
+if stream["workload_identity"] != staged_workload["workload_id"] or stream["worker_protocol"] != "qsol.mesh.cuda-stream-worker.v1":
     raise SystemExit("CUDA stream workload or worker protocol drift")
 if stream["receipt_schema"] != "qsol.mesh.cuda-stream-receipt.v1":
     raise SystemExit("CUDA stream receipt identity drift")
@@ -232,7 +259,7 @@ runtime_source = (ROOT / "crates/mesh-core/src/memory_runtime.rs").read_text(enc
 for token in ("cudaHostAlloc", "cudaMalloc", "cudaMemcpyAsync", "cudaEventRecord", "cudaEventSynchronize", "cudaFreeHost", "cudaFree"):
     if token not in worker_source:
         raise SystemExit(f"CUDA stream worker lost physical primitive: {token}")
-for token in ("canonical_cuda_worker_path", "smoke_reference", "host_pinned_peak_bytes", "accelerator_peak_bytes", "stream_receipt_json"):
+for token in ("canonical_cuda_worker_path", "smoke_reference", "host_pinned_peak_bytes", "accelerator_peak_bytes", "stream_receipt_json", 'STREAM_WORKLOAD_ID: &str = "mesh-smoke-stream-v1"'):
     if token not in runtime_source:
         raise SystemExit(f"CUDA stream Rust launcher lost verification: {token}")
 

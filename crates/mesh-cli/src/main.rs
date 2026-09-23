@@ -711,10 +711,11 @@ fn main() -> ExitCode {
         Command::Run | Command::Verify if args.get(1).map(String::as_str) == Some("smoke-cuda") => {
             print_cuda_smoke(command, &args[2..])
         }
-        Command::Run | Command::Verify
-            if args.get(1).map(String::as_str) == Some("smoke-stream") =>
-        {
+        Command::Verify if args.get(1).map(String::as_str) == Some("smoke-stream") => {
             print_smoke_stream(command, &args[2..])
+        }
+        Command::Run if args.get(1).map(String::as_str) == Some("smoke-stream") => {
+            Err("smoke-stream is admitted only by verify".into())
         }
         Command::Run | Command::Verify
             if args.get(1).map(String::as_str) == Some("smoke-static") =>

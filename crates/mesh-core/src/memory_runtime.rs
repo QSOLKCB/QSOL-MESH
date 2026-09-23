@@ -3,11 +3,13 @@
 //! The CUDA worker owns the allocations; the Rust launcher verifies its output
 //! against an independent scalar oracle before issuing an execution receipt.
 
-use crate::{accelerator::canonical_cuda_worker_path, smoke_reference, SMOKE_WORKLOAD_ID};
+use crate::{accelerator::canonical_cuda_worker_path, smoke_reference};
 use std::{path::PathBuf, process::Command};
 
 pub const STREAM_WORKER_PROTOCOL: &str = "qsol.mesh.cuda-stream-worker.v1";
 pub const STREAM_RECEIPT_SCHEMA: &str = "qsol.mesh.cuda-stream-receipt.v1";
+pub const STREAM_WORKLOAD_ID: &str = "mesh-smoke-stream-v1";
+
 pub const STREAM_HELPER: &str = "mesh-cuda-stream";
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -196,8 +198,8 @@ pub fn run_stream(request: StreamRequest) -> Result<StreamRun, String> {
 }
 
 pub fn stream_receipt_json(command: &str, run: &StreamRun) -> Result<String, &'static str> {
-    if command != "run" && command != "verify" {
-        return Err("stream receipt command must be run or verify");
+    if command != "verify" {
+        return Err("stream receipt command must be verify");
     }
     if validate_stream_observation(run.request, run.observed)? != run.reference {
         return Err("stream receipt reference drift");
@@ -211,7 +213,7 @@ pub fn stream_receipt_json(command: &str, run: &StreamRun) -> Result<String, &'s
     let o = run.observed;
     let r = run.request;
     Ok(format!(
-        "{{\"schema\":\"{STREAM_RECEIPT_SCHEMA}\",\"source_identity\":{{\"runtime\":\"qsol-mesh-cli\",\"worker_protocol\":\"{STREAM_WORKER_PROTOCOL}\",\"helper_resolution\":\"application-target-directory/mesh-cuda-stream\"}},\"workload_identity\":{{\"workload_id\":\"{SMOKE_WORKLOAD_ID}\"}},\"requested_configuration\":{{\"command\":\"{command}\",\"items\":{},\"requested_chunk_items\":{},\"host_pinned_limit_bytes\":{},\"accelerator_limit_bytes\":{},\"device_ordinal\":{}}},\"observed_topology\":{{\"accelerator_observed\":true,\"device_ordinal\":{},\"compute_major\":{},\"compute_minor\":{},\"cuda_runtime_version\":{},\"cuda_driver_version\":{},\"evidence_source\":\"cuda-helper-process\"}},\"effective_execution\":{{\"backend\":\"nvidia-cuda\",\"effective_chunk_items\":{},\"chunk_count\":{},\"event_records\":{},\"reduction\":\"host-ordered-wrapping-u64-partials\"}},\"memory_plan\":{{\"physically_materialized\":true,\"host_pinned_peak_bytes\":{},\"accelerator_peak_bytes\":{},\"pinned_staging_allocations\":1,\"pinned_partial_allocations\":1,\"device_pool_allocations\":1,\"device_partial_allocations\":1,\"partial_bytes\":8,\"reuse_across_chunks\":true}},\"calibration\":{{\"performed\":false}},\"verification\":{{\"kind\":\"scalar-reference-equality\",\"checksum\":\"{:016x}\",\"reference\":\"{:016x}\",\"verified\":true}},\"claim_boundary\":\"helper-reported-physical-cuda-streaming-and-scalar-parity-not-independent-hardware-attestation\"}}",
+        "{{\"schema\":\"{STREAM_RECEIPT_SCHEMA}\",\"source_identity\":{{\"runtime\":\"qsol-mesh-cli\",\"worker_protocol\":\"{STREAM_WORKER_PROTOCOL}\",\"helper_resolution\":\"application-target-directory/mesh-cuda-stream\"}},\"workload_identity\":{{\"workload_id\":\"{STREAM_WORKLOAD_ID}\",\"workload_contract_version\":\"1.0.0\"}},\"requested_configuration\":{{\"command\":\"{command}\",\"items\":{},\"requested_chunk_items\":{},\"host_pinned_limit_bytes\":{},\"accelerator_limit_bytes\":{},\"device_ordinal\":{}}},\"observed_topology\":{{\"accelerator_observed\":true,\"device_ordinal\":{},\"compute_major\":{},\"compute_minor\":{},\"cuda_runtime_version\":{},\"cuda_driver_version\":{},\"evidence_source\":\"cuda-helper-process\"}},\"effective_execution\":{{\"backend\":\"nvidia-cuda\",\"effective_chunk_items\":{},\"chunk_count\":{},\"event_records\":{},\"reduction\":\"host-ordered-wrapping-u64-partials\"}},\"memory_plan\":{{\"physically_materialized\":true,\"host_pinned_peak_bytes\":{},\"accelerator_peak_bytes\":{},\"pinned_staging_allocations\":1,\"pinned_partial_allocations\":1,\"device_pool_allocations\":1,\"device_partial_allocations\":1,\"partial_bytes\":8,\"reuse_across_chunks\":true}},\"calibration\":{{\"performed\":false}},\"verification\":{{\"kind\":\"scalar-reference-equality\",\"checksum\":\"{:016x}\",\"reference\":\"{:016x}\",\"verified\":true}},\"claim_boundary\":\"helper-reported-physical-cuda-streaming-and-scalar-parity-not-independent-hardware-attestation\"}}",
         r.items, r.requested_chunk_items, r.pinned_limit_bytes, r.accelerator_limit_bytes, r.device,
         o.device, o.compute_major, o.compute_minor, o.cuda_runtime, o.cuda_driver,
         o.chunk_items, o.chunks, o.event_records, o.host_pinned_peak_bytes,
@@ -271,6 +273,24 @@ mod tests {
             }
         )
         .is_err());
+    }
+
+    #[test]
+    fn receipt_requires_verify_and_staged_workload_identity() {
+        let observed = parse_stream_line(line()).unwrap();
+        let run = StreamRun {
+            request: request(),
+            observed,
+            reference: observed.checksum,
+            helper_path: canonical_cuda_worker_path(STREAM_HELPER).unwrap(),
+        };
+        assert_eq!(
+            stream_receipt_json("run", &run),
+            Err("stream receipt command must be verify")
+        );
+        let receipt = stream_receipt_json("verify", &run).unwrap();
+        assert!(receipt.contains("\"workload_id\":\"mesh-smoke-stream-v1\""));
+        assert!(receipt.contains("\"workload_contract_version\":\"1.0.0\""));
     }
 
     #[test]

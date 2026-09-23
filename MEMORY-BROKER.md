@@ -104,8 +104,11 @@ execution evidence before the roadmap's physical gates can close.
 ## Experimental physical CUDA stream rung
 
 The planning-only `mesh plan memory` receipt above remains unchanged. A separate
-`mesh verify smoke-stream` command uses a CUDA-owned worker for the MESH synthetic
-smoke workload. It allocates one pinned input buffer, one pinned 8-byte partial,
+`mesh verify smoke-stream` command uses a CUDA-owned worker for the versioned
+`mesh-smoke-stream-v1` workload. It retains the procedural smoke checksum
+arithmetic and scalar oracle, but explicitly permits bounded per-item staging
+under `machine/workloads/smoke-stream-v1.json`. Only `verify` is admitted.
+It allocates one pinned input buffer, one pinned 8-byte partial,
 one device input buffer, and one device 8-byte partial. All four buffers and
 three CUDA events are reused for every chunk and released before a receipt is
 reported. The worker stages logical IDs, uploads them on a single CUDA stream,
@@ -130,6 +133,8 @@ target/release/mesh verify smoke-stream --items 100000 --chunk-items 4096 \
 
 Use `bash scripts/capture-phase3-cuda-stream.sh phase3-cuda-evidence` on a clean
 checkout to retain one-chunk and multi-chunk receipts, environment, and hashes.
+The capture resolves `NVCC` (or `nvcc` on PATH) once and records the same compiler
+executable and version used to build the helper.
 The roadmap's physical execution evidence boxes remain open until those
 receipts are captured and independently checked on a CUDA-capable host. The
 versioned physical contract is `machine/cuda-stream-contract.v1.json`.

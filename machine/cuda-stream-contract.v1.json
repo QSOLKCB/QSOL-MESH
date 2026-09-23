@@ -1,7 +1,7 @@
 {
   "schema": "qsol.mesh.cuda-stream-contract.v1",
   "contract_version": "1.0.0",
-  "workload_identity": "mesh-smoke-v1",
+  "workload_identity": "mesh-smoke-stream-v1",
   "worker_protocol": "qsol.mesh.cuda-stream-worker.v1",
   "receipt_schema": "qsol.mesh.cuda-stream-receipt.v1",
   "verified_worker_location": "application-target-directory/mesh-cuda-stream",
