@@ -866,6 +866,10 @@ pub fn cuda_calibrated_plan_receipt_json(run: &CudaCalibratedRun) -> Result<Stri
     {
         return Err("CUDA calibration receipt requires measured accelerator candidates");
     }
+    let selected = candidate_by_id(&plan.candidates, plan.selected_candidate_id)
+        .ok_or("selected candidate missing")?;
+    let selected_confirmation = observation_by_id(&plan.confirmation, plan.selected_candidate_id)
+        .ok_or("selected full-work confirmation missing")?;
     let candidates = plan
         .candidates
         .iter()
@@ -888,7 +892,7 @@ pub fn cuda_calibrated_plan_receipt_json(run: &CudaCalibratedRun) -> Result<Stri
         .collect::<Result<Vec<_>, _>>()?
         .join(",");
     Ok(format!(
-        "{{\"schema\":\"{CUDA_CALIBRATED_PLAN_RECEIPT_SCHEMA}\",\"source_identity\":{{\"runtime\":\"qsol-mesh-cli\",\"plan_identity\":\"{CALIBRATED_PLAN_ID}\",\"plan_version\":\"2.0.0\"}},\"workload_identity\":{{\"workload_id\":\"{SMOKE_WORKLOAD_ID}\"}},\"requested_configuration\":{{\"calibration_items\":{},\"full_work_items\":{},\"repeats\":{},\"near_tie_bps\":{},\"device_ordinal\":{device}}},\"observed_topology\":{{\"available_cpu_workers\":{},\"accelerator_observed\":true,\"cuda_compute_major\":{},\"cuda_compute_minor\":{},\"cuda_runtime_version\":{},\"cuda_driver_version\":{},\"cuda_topology_source\":\"canonical-helper-reported\"}},\"effective_execution\":{{\"kind\":\"calibration-and-planning\",\"provisional_candidate_id\":{},\"selected_candidate_id\":{},\"canonical_candidate_id\":{},\"canonical_retained\":{},\"selection_reason\":\"{}\"}},\"memory_plan\":{{\"physical_memory_claim\":false}},\"calibration\":{{\"candidate_budget\":{CANDIDATE_BUDGET},\"candidates\":[{candidates}],\"observations\":[{calibration}],\"full_work_confirmation\":[{confirmation}],\"cost_scopes\":{{\"cpu\":\"run_smoke-end-to-end\",\"accelerator\":\"median-sample-launcher-plus-verification-host-wall-partitioned-by-nested-setup-and-D2H\",\"heterogeneous-static\":\"full-static-call-end-to-end\"}},\"cross_clock_kernel_timing_added\":false}},\"verification\":{{\"kind\":\"scalar-oracle-plus-full-work-confirmation\",\"verified\":true}},\"claim_boundary\":\"host-specific-helper-reported-CUDA-calibration-not-universal-performance-or-kernel-overlap-evidence\"}}",
+        "{{\"schema\":\"{CUDA_CALIBRATED_PLAN_RECEIPT_SCHEMA}\",\"source_identity\":{{\"runtime\":\"qsol-mesh-cli\",\"plan_identity\":\"{CALIBRATED_PLAN_ID}\",\"plan_version\":\"2.0.0\"}},\"workload_identity\":{{\"workload_id\":\"{SMOKE_WORKLOAD_ID}\"}},\"requested_configuration\":{{\"calibration_items\":{},\"full_work_items\":{},\"repeats\":{},\"near_tie_bps\":{},\"device_ordinal\":{device}}},\"observed_topology\":{{\"available_cpu_workers\":{},\"device_ordinal\":{device},\"accelerator_observed\":true,\"cuda_compute_major\":{},\"cuda_compute_minor\":{},\"cuda_runtime_version\":{},\"cuda_driver_version\":{},\"cuda_topology_source\":\"canonical-helper-reported\"}},\"effective_execution\":{{\"kind\":\"calibration-and-planning\",\"provisional_candidate_id\":{},\"selected_candidate_id\":{},\"canonical_candidate_id\":{},\"canonical_retained\":{},\"selection_reason\":\"{}\",\"selected_requested_cpu_workers\":{},\"selected_effective_cpu_workers\":{}}},\"memory_plan\":{{\"physical_memory_claim\":false}},\"calibration\":{{\"candidate_budget\":{CANDIDATE_BUDGET},\"candidates\":[{candidates}],\"observations\":[{calibration}],\"full_work_confirmation\":[{confirmation}],\"cost_scopes\":{{\"cpu\":\"run_smoke-end-to-end\",\"accelerator\":\"median-sample-launcher-plus-verification-host-wall-partitioned-by-nested-setup-and-D2H\",\"heterogeneous-static\":\"full-static-call-end-to-end\"}},\"cross_clock_kernel_timing_added\":false}},\"verification\":{{\"kind\":\"scalar-oracle-plus-full-work-confirmation\",\"verified\":true}},\"claim_boundary\":\"host-specific-helper-reported-CUDA-calibration-not-universal-performance-or-kernel-overlap-evidence\"}}",
         plan.calibration_units,
         plan.full_work_units,
         plan.repeats,
@@ -903,6 +907,8 @@ pub fn cuda_calibrated_plan_receipt_json(run: &CudaCalibratedRun) -> Result<Stri
         plan.canonical_candidate_id,
         plan.canonical_retained,
         plan.selection_reason,
+        selected.cpu_workers,
+        selected_confirmation.effective_cpu_workers,
     ))
 }
 

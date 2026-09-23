@@ -32,32 +32,36 @@
 - [x] Adapter contract without copying GALAXY semantics into MESH.
 - [x] Logical-ID range partitioning and executor-local regeneration requests.
 - [x] Compact partial reductions.
-- [ ] Exact GALAXY oracle parity.
+- [x] Exact GALAXY oracle parity.
   - [x] Frozen v0.4.0 authority and archived CPU oracle checksums are pinned exactly.
-  - [ ] Live partitioned parity requires a GALAXY-owned range entrypoint.
+  - [x] Live partitioned parity through GALAXY's merged CPU range entrypoint, including the archived frozen checksum.
 - [ ] CPU-only/GPU-only/heterogeneous baselines.
-  - [x] Archived CPU-only evidence is bound and static requested baseline geometries are defined.
+  - [x] Archived and live CPU-only evidence are bound; static requested baseline geometries are defined.
   - [ ] GPU-only and heterogeneous execution evidence require a GALAXY-owned accelerator path plus retained CUDA-host evidence.
 
 ## Phase 3 — memory broker
 - [ ] Persistent accelerator allocation pool.
   - [x] Persistent accelerator-local pool planning, lifetime, and reuse contract.
-  - [ ] Physical persistent pool is not provided by the single-checksum CUDA worker.
+  - [x] Bounded CUDA stream worker allocates its device input and partial buffers once per run and reuses them across chunks.
+  - [ ] Retained CUDA-host evidence of physical pool allocation and reuse.
 - [ ] Bounded pinned-host staging.
   - [x] Bounded staging plan, peak-live enforcement, and reuse contract.
-  - [ ] Physical OS/CUDA-backed pinned staging remains backend-owned.
+  - [x] CUDA-owned pinned staging and compact partial buffers are allocated once under explicit physical budgets.
+  - [ ] Retained CUDA-host evidence of OS/CUDA-backed pinned staging.
 - [x] Explicit transfer/event graph.
 - [x] Memory-plan receipts.
 - [ ] Stream/reduce/discard where permitted.
   - [x] Constant-size reusable stream/reduce/discard planning template.
-  - [ ] Runtime streaming execution remains a later executor rung.
+  - [x] Separate smoke CUDA worker implements ordered upload, kernel, compact download, host reduction, and discard per chunk.
+  - [ ] Retained CUDA-host runtime streaming and scalar-oracle receipt.
 
 ## Phase 4 — calibrated planning
 - [ ] Measure CPU/GPU service and setup/transfer costs.
   - [x] Real host CPU smoke service measurements with explicit cost scope.
   - [x] Versioned setup/service/transfer cost evidence fields.
   - [x] Optional CUDA timing receipt v2 separates helper latency, setup, kernel service, D2H transfer, teardown, and scalar verification with explicit clock scopes.
-  - [ ] CUDA executor timing/setup/transfer measurement has not yet been integrated into the calibrator.
+  - [x] Opt-in CUDA calibrator consumes verified timing v2 samples and compares CPU-only, CUDA-only, and static heterogeneous candidates with full-work confirmation.
+  - [ ] Retained CUDA-host calibration receipt with measured setup/service/transfer costs and full-work selection evidence.
 - [x] Topology-derived bounded candidate plans.
 - [x] Deterministic search and full-work confirmation.
 - [x] Keep canonical on near ties.

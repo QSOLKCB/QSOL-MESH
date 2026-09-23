@@ -1,0 +1,41 @@
+{
+  "schema": "qsol.mesh.galaxy-range-adapter.v2",
+  "contract_version": "2.0.0",
+  "workload_id": "galaxy-v0.4.0-bam-lut-q30",
+  "upstream_authority": {
+    "repository": "QSOLKCB/GALAXY",
+    "frozen_release_commit": "6f17a734b9241359d36a9bf3d208b8527a456327",
+    "cpu_runtime_blob_sha": "b12220565f6059482f706d46db1d9d2c29a9cc82",
+    "live_cpu_range_merge_commit": "623c43a13c0696533164826ec71896488c7aed44",
+    "range_protocol": "galaxy.cpu-range.v1",
+    "source_copy_into_mesh": false
+  },
+  "domain": {
+    "logical_population": "u64-nonzero",
+    "resident_particles": "1..=16777216-and-no-greater-than-logical-population",
+    "partition_axis": "resident-sample-index",
+    "interval": "nonempty-half-open-start-end-within-resident-population",
+    "global_id_mapping_owner": "GALAXY",
+    "global_id_mapping": "floor(resident_index-times-logical_population-divided-by-full_resident_particles)"
+  },
+  "execution": {
+    "backend": "GALAXY-owned-CPU-only",
+    "requested_partitions": "2..=256",
+    "complete_gap_free_cover_required": true,
+    "partial_checksum": "wrapping-u64",
+    "full_range_execution_required": true,
+    "partitioned_checksum_must_equal_full_range": true,
+    "archived_oracle_required_for_frozen_geometry": true,
+    "archived_bam_lut_checksum": "8d6f07bd77e2fc16"
+  },
+  "evidence_boundary": {
+    "binary_provenance_attested": false,
+    "cuda_executed": false,
+    "requested_gpu_plan_is_evidence": false,
+    "standalone_partition_parity_is_independent_oracle": false,
+    "receipt_schema": "qsol.mesh.galaxy-cpu-parity-receipt.v1",
+    "common_evidence_sections_required": true,
+    "topology_and_memory_observation_status": "not-observed",
+    "calibration_performed": false
+  }
+}

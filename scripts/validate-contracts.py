@@ -10,8 +10,10 @@ EXPECTED = {
     "workload-contract.v1.json":"qsol.mesh.workload-contract.v1",
     "memory-model.v1.json":"qsol.mesh.memory-model.v1",
     "memory-plan-contract.v1.json":"qsol.mesh.memory-plan-contract.v1",
+    "cuda-stream-contract.v1.json":"qsol.mesh.cuda-stream-contract.v1",
     "calibrated-plan-contract.v1.json":"qsol.mesh.calibrated-plan-contract.v1",
     "calibrated-plan-contract.v2.json":"qsol.mesh.calibrated-plan-contract.v2",
+    "galaxy-range-contract.v2.json":"qsol.mesh.galaxy-range-adapter.v2",
     "nvidia-executor-contract.v1.json":"qsol.mesh.nvidia-executor-contract.v1",
     "nvidia-executor-timing-contract.v2.json":"qsol.mesh.nvidia-executor-timing-contract.v2",
     "static-split-contract.v1.json":"qsol.mesh.static-split-contract.v1",
@@ -102,10 +104,58 @@ if oracle != {
     "float_checksum": "adf6d6e30d3ad26d",
 }:
     raise SystemExit("GALAXY archived oracle drift")
-if galaxy["verification_contract"]["live_partitioned_oracle_status"] != "pending-galaxy-owned-range-entrypoint":
-    raise SystemExit("GALAXY live parity must remain capability-gated")
+if galaxy["verification_contract"]["live_partitioned_oracle_status"] != "admitted-galaxy-owned-cpu-range-v1":
+    raise SystemExit("GALAXY live CPU parity admission drift")
+if galaxy["verification_contract"].get("live_cpu_range_contract") != "machine/galaxy-range-contract.v2.json":
+    raise SystemExit("GALAXY live CPU range contract binding drift")
+if galaxy["baseline_contract"].get("cpu_only_live_evidence_available") is not True:
+    raise SystemExit("GALAXY CPU baseline evidence drift")
 if galaxy["baseline_contract"]["requested_plan_is_execution_evidence"] is not False:
     raise SystemExit("requested GALAXY baseline plans must not imply execution evidence")
+
+galaxy_range = loaded["galaxy-range-contract.v2.json"]
+if galaxy_range["workload_id"] != galaxy["workload_id"] or galaxy_range["contract_version"] != "2.0.0":
+    raise SystemExit("GALAXY live range identity drift")
+if galaxy_range["upstream_authority"] != {
+    "repository": upstream["repository"],
+    "frozen_release_commit": upstream["frozen_release_commit"],
+    "cpu_runtime_blob_sha": upstream["cpu_runtime_blob_sha"],
+    "live_cpu_range_merge_commit": "623c43a13c0696533164826ec71896488c7aed44",
+    "range_protocol": "galaxy.cpu-range.v1",
+    "source_copy_into_mesh": False,
+}:
+    raise SystemExit("GALAXY live range upstream authority drift")
+if galaxy_range["domain"] != {
+    "logical_population": "u64-nonzero",
+    "resident_particles": "1..=16777216-and-no-greater-than-logical-population",
+    "partition_axis": "resident-sample-index",
+    "interval": "nonempty-half-open-start-end-within-resident-population",
+    "global_id_mapping_owner": "GALAXY",
+    "global_id_mapping": "floor(resident_index-times-logical_population-divided-by-full_resident_particles)",
+}:
+    raise SystemExit("GALAXY live range domain drift")
+if galaxy_range["execution"] != {
+    "backend": "GALAXY-owned-CPU-only",
+    "requested_partitions": "2..=256",
+    "complete_gap_free_cover_required": True,
+    "partial_checksum": "wrapping-u64",
+    "full_range_execution_required": True,
+    "partitioned_checksum_must_equal_full_range": True,
+    "archived_oracle_required_for_frozen_geometry": True,
+    "archived_bam_lut_checksum": oracle["bam_lut_checksum"],
+}:
+    raise SystemExit("GALAXY live range execution or oracle drift")
+if galaxy_range["evidence_boundary"] != {
+    "binary_provenance_attested": False,
+    "cuda_executed": False,
+    "requested_gpu_plan_is_evidence": False,
+    "standalone_partition_parity_is_independent_oracle": False,
+    "receipt_schema": "qsol.mesh.galaxy-cpu-parity-receipt.v1",
+    "common_evidence_sections_required": True,
+    "topology_and_memory_observation_status": "not-observed",
+    "calibration_performed": False,
+}:
+    raise SystemExit("GALAXY live range evidence boundary drift")
 
 galaxy_source = (ROOT / "crates/mesh-core/src/galaxy.rs").read_text(encoding="utf-8")
 for token in (
@@ -144,6 +194,76 @@ if memory_plan["materialization_boundary"] != {
 if memory_plan["receipt_contract"]["schema"] != "qsol.mesh.memory-plan-receipt.v1":
     raise SystemExit("memory plan receipt schema drift")
 
+stream = loaded["cuda-stream-contract.v1.json"]
+staged_workload = workloads["smoke-stream-v1.json"]
+if staged_workload["workload_id"] != "mesh-smoke-stream-v1" or staged_workload["workload_contract_version"] != "1.0.0":
+    raise SystemExit("staged stream workload identity drift")
+if staged_workload["computation_contract"] != {
+    "kind": "mesh-smoke-v1-contribution-and-wrapping-u64-sum",
+    "scalar_oracle": "mesh-smoke-v1",
+    "memory_semantics_inherited": False,
+}:
+    raise SystemExit("staged stream scalar oracle binding drift")
+if staged_workload["memory_contract"] != {
+    "per_item_materialization": True,
+    "materialization_scope": "current-chunk-only",
+    "temporary_state": "O(effective_chunk_items)",
+    "item_bytes_per_domain": 8,
+    "partial_bytes_per_domain": 8,
+    "domains": ["host-pinned", "accelerator-local"],
+    "declared_domain_budgets_required": True,
+    "budget_includes_partial_buffers": True,
+    "allocation_reuse_across_chunks": True,
+}:
+    raise SystemExit("staged stream memory semantics drift")
+if smoke["memory_contract"] != {"per_item_materialization": False, "temporary_state": "O(workers)"}:
+    raise SystemExit("procedural smoke workload memory semantics drift")
+if staged_workload["reduction_contract"] != {"kind": "chunk-index-order-wrapping-u64"} or staged_workload["verification_contract"] != {"kind": "scalar-reference-equality", "fail_closed": True}:
+    raise SystemExit("staged stream reduction or oracle drift")
+if stream["activation"] != "mesh-verify-smoke-stream":
+    raise SystemExit("CUDA stream activation drift")
+if stream["workload_identity"] != staged_workload["workload_id"] or stream["worker_protocol"] != "qsol.mesh.cuda-stream-worker.v1":
+    raise SystemExit("CUDA stream workload or worker protocol drift")
+if stream["receipt_schema"] != "qsol.mesh.cuda-stream-receipt.v1":
+    raise SystemExit("CUDA stream receipt identity drift")
+if stream["verified_worker_location"] != "application-target-directory/mesh-cuda-stream":
+    raise SystemExit("CUDA stream canonical worker boundary drift")
+if stream["physical_memory"] != {
+    "host_pinned_staging_allocation": "cudaHostAlloc-once-per-run",
+    "host_pinned_partial_allocation": "cudaHostAlloc-once-per-run",
+    "device_input_pool_allocation": "cudaMalloc-once-per-run",
+    "device_partial_allocation": "cudaMalloc-once-per-run",
+    "partial_bytes": 8,
+    "peak_pinned_bytes": "effective_chunk_items-times-8-plus-8",
+    "peak_accelerator_bytes": "effective_chunk_items-times-8-plus-8",
+    "effective_chunk_items": "min(items,requested_chunk_items,floor((pinned_limit-8)/8),floor((accelerator_limit-8)/8),floor(size_t_max/8))",
+    "allocation_reuse_required": True,
+    "chunk_count": "ceil(items/effective_chunk_items)",
+}:
+    raise SystemExit("CUDA stream physical memory contract drift")
+if stream["event_graph"] != ["stage-host-pinned", "upload-accelerator", "execute", "download-partial", "reduce", "discard"] or stream["cuda_events_per_chunk"] != 3:
+    raise SystemExit("CUDA stream event graph drift")
+if stream["verification"] != {
+    "independent_scalar_oracle_required": True,
+    "strict_single_line_worker_protocol": True,
+    "required_common_evidence_sections": True,
+    "helper_topology_independently_attested": False,
+}:
+    raise SystemExit("CUDA stream verification boundary drift")
+if stream["ci_boundary"] != {
+    "default_runner_has_cuda_execution_evidence": False,
+    "retained_cuda_host_evidence_required_for_roadmap_completion": True,
+}:
+    raise SystemExit("CUDA stream hardware evidence boundary drift")
+worker_source = (ROOT / "accelerators/cuda/mesh_stream_cuda.cu").read_text(encoding="utf-8")
+runtime_source = (ROOT / "crates/mesh-core/src/memory_runtime.rs").read_text(encoding="utf-8")
+for token in ("cudaHostAlloc", "cudaMalloc", "cudaMemcpyAsync", "cudaEventRecord", "cudaEventSynchronize", "cudaFreeHost", "cudaFree"):
+    if token not in worker_source:
+        raise SystemExit(f"CUDA stream worker lost physical primitive: {token}")
+for token in ("canonical_cuda_worker_path", "smoke_reference", "host_pinned_peak_bytes", "accelerator_peak_bytes", "stream_receipt_json", 'STREAM_WORKLOAD_ID: &str = "mesh-smoke-stream-v1"'):
+    if token not in runtime_source:
+        raise SystemExit(f"CUDA stream Rust launcher lost verification: {token}")
+
 memory_source = (ROOT / "crates/mesh-core/src/memory.rs").read_text(encoding="utf-8")
 for token in (
     "stream-reduce-discard-template-v1",
@@ -177,7 +297,7 @@ if calibrated["measurement_contract"]["cpu_smoke_nonzero_setup_or_transfer_is_ad
     raise SystemExit("CPU smoke cost-field boundary drift")
 if (
     calibrated["measurement_contract"]["accelerator_measurement_status"]
-    != "available-via-qsol.mesh.cuda-smoke-receipt.v2-not-yet-admitted"
+    != "admitted-only-by-calibrated-plan-contract.v2"
 ):
     raise SystemExit("accelerator measurement availability boundary drift")
 if (
@@ -217,6 +337,46 @@ for key in (
 ):
     if calibrated["receipt_contract"].get(key) is not True:
         raise SystemExit(f"calibrated receipt contract weakened: {key}")
+
+cuda_calibrated = loaded["calibrated-plan-contract.v2.json"]
+if calibrated.get("activation") != "mesh-calibrate-smoke-without---cuda" or calibrated["measurement_contract"].get("opt_in_cuda_contract") != "machine/calibrated-plan-contract.v2.json":
+    raise SystemExit("CPU-only default and opt-in CUDA calibration authority drift")
+expected_cuda_calibrated = {'schema': 'qsol.mesh.calibrated-plan-contract.v2',
+ 'contract_version': '2.0.0',
+ 'plan_identity': 'mesh-calibration-smoke-v1',
+ 'activation': 'mesh-calibrate-smoke---cuda',
+ 'cuda_helper': 'canonical-mesh-cuda-smoke',
+ 'workload_identity': 'mesh-smoke-v1',
+ 'candidate_set': ['canonical-cpu', 'topology-derived-cpu', 'cuda-only', 'static-cpu-cuda'],
+ 'measurement': {'repeats': 'positive',
+                 'cuda_protocol': 'qsol.mesh.cuda-smoke-worker.v2',
+                 'cuda_sample_policy': 'median-launcher-plus-scalar-verification-host-time-sample-with-components-from-same-repeat',
+                 'cuda_service_ns': 'launcher_total_ns-plus-verification_ns-minus-nested-setup_host_ns-minus-nested-transfer_host_ns',
+                 'cuda_setup_ns': 'setup_host_ns',
+                 'cuda_transfer_ns': 'transfer_host_ns',
+                 'cuda_total_ns': 'launcher_total_ns-plus-verification_ns',
+                 'cuda_kernel_event_ns_added_to_total': False,
+                 'cpu_service_ns': 'run_smoke-end-to-end',
+                 'heterogeneous_service_ns': 'run_static_smoke_partition-end-to-end',
+                 'heterogeneous_setup_transfer_separately_isolated': False,
+                 'worker_topology_is_independently_attested': False,
+                 'cuda_identity_stable_across_all_samples_and_candidates': True,
+                 'cuda_timing_contract': 'machine/nvidia-executor-timing-contract.v2.json'},
+ 'selection': {'canonical_checksum_is_independent_scalar_oracle': True,
+               'all_candidates_measured': True,
+               'near_tie_and_full_work_confirmation': True,
+               'adaptive_work_stealing': False},
+ 'receipt_schema': 'qsol.mesh.calibrated-plan-receipt.v2',
+ 'base_planning_contract': 'machine/calibrated-plan-contract.v1.json',
+ 'request_domain': {'calibration_items': '2..=u64::MAX',
+                    'full_work_items': 'calibration_items..=u64::MAX',
+                    'repeats': 'positive-usize',
+                    'near_tie_bps': '0..=9999',
+                    'device': 'u32'},
+ 'receipt_requires_common_evidence_sections': True,
+ 'cuda_host_evidence_status': 'pending-retained-physical-calibration-receipt'}
+if {key: value for key, value in cuda_calibrated.items() if key != "claim_boundary"} != expected_cuda_calibrated:
+    raise SystemExit("CUDA calibrated planning admission, measurement, or evidence boundary drift")
 
 planner_source = (ROOT / "crates/mesh-core/src/planner.rs").read_text(encoding="utf-8")
 for token in (
@@ -331,7 +491,8 @@ if timing["activation"] != {
     "default_smoke_cuda_receipt_remains_v1": True,
     "range_timing_supported": False,
     "placement_behavior_may_change": False,
-    "calibrator_may_consume_v2_timings": False,
+    "calibrator_may_consume_v2_timings": True,
+    "calibrator_admission_contract": "machine/calibrated-plan-contract.v2.json",
 }:
     raise SystemExit("CUDA timing activation/compatibility boundary drift")
 
@@ -629,6 +790,7 @@ agents = (ROOT / "AGENTS.md").read_text(encoding="utf-8")
 for contract_name in (
     "machine/memory-plan-contract.v1.json",
     "machine/calibrated-plan-contract.v1.json",
+    "machine/calibrated-plan-contract.v2.json",
     "machine/nvidia-executor-contract.v1.json",
     "machine/nvidia-executor-timing-contract.v2.json",
     "machine/static-split-contract.v1.json",

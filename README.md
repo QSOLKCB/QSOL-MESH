@@ -110,9 +110,16 @@ mesh plan memory \
   --json
 ```
 
-This is **planning evidence only**. The plan hard-fails if it attempts to claim physical materialization. Real pinned host pages and persistent accelerator-local allocations remain backend-owned and are still gated on the real accelerator executor.
+This is **planning evidence only**. The plan hard-fails if it attempts to claim physical materialization. The separate experimental CUDA worker below owns physical allocations; its execution evidence remains gated on a CUDA-host run.
 
 See `MEMORY-BROKER.md` and `machine/memory-plan-contract.v1.json`.
+
+A separate experimental `mesh verify smoke-stream` path now implements bounded
+CUDA-owned pinned staging, reusable device allocation, and ordered compact
+reductions for the synthetic smoke workload. Its physical execution claim
+requires a CUDA-host run; see `MEMORY-BROKER.md` and
+`machine/cuda-stream-contract.v1.json` for the executable contract and capture
+command. The existing `mesh plan memory` receipt remains planning-only.
 
 
 ## Phase 4 calibrated planning
@@ -130,12 +137,12 @@ mesh calibrate smoke \
 
 The planner keeps the canonical one-worker plan unless another measured candidate beats it by more than the configured margin. Any noncanonical calibration winner must then repeat that win against canonical on the full requested work before promotion. Otherwise canonical is retained or restored.
 
-Current calibrated planning remains CPU-only. The CUDA executor now has an opt-in separated timing receipt:
+Default calibrated planning remains CPU-only. On a CUDA host, opt in to measured CPU, CUDA-only, and static CPU/CUDA candidate selection:
 
 ```sh
-mesh verify smoke-cuda --items 100000 --device 0 --timing --json
+mesh calibrate smoke --cuda --device 0 --calibration-items 10000 --full-items 100000 --repeats 3 --json
 ```
 
-That v2 receipt separates canonical-helper wall latency, CUDA-worker setup, CUDA-event kernel service, synchronous D2H transfer, teardown, and independent scalar verification. Each field records its clock scope, and the receipt explicitly forbids a cross-clock additive total. These measurements are **not yet admitted by the calibrated planner**; accelerator placement remains unchanged until the next roadmap rung.
+The v2 calibrator consumes verified timing measurements, uses setup and transfer costs from the same median host-time sample, and confirms a noncanonical winner on full work. CUDA event time is not added to host costs. Retained physical CUDA calibration evidence remains pending. Run `bash scripts/capture-phase4-cuda-calibration.sh phase4-cuda-evidence` on a CUDA host to capture timing and calibration receipts with compiler metadata and hashes.
 
-See `CALIBRATED-PLANNING.md` and `machine/calibrated-plan-contract.v1.json`.
+See `CALIBRATED-PLANNING.md` and `machine/calibrated-plan-contract.v2.json` (opt-in CUDA) or `machine/calibrated-plan-contract.v1.json` (default CPU).

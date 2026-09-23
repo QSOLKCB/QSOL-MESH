@@ -89,13 +89,52 @@ mesh plan memory \
 
 The result is a `qsol.mesh.memory-plan-receipt.v1` receipt with the existing evidence sections plus the explicit memory graph and peak-live accounting.
 
-## Still capability-gated
+## Planning receipt boundary
 
-Phase 3 is **not** claiming these physical capabilities yet:
+The v1 planning receipt does **not** claim these physical capabilities:
 
 - actual OS-backed pinned host allocation;
 - actual persistent VRAM allocation;
 - measured transfer completion/events;
 - observed reuse across real accelerator submissions.
 
-Those become executable only after an accelerator backend owns the physical resources and can report observed evidence.
+The separate CUDA executor below owns the resources; it needs retained host
+execution evidence before the roadmap's physical gates can close.
+
+## Experimental physical CUDA stream rung
+
+The planning-only `mesh plan memory` receipt above remains unchanged. A separate
+`mesh verify smoke-stream` command uses a CUDA-owned worker for the versioned
+`mesh-smoke-stream-v1` workload. It retains the procedural smoke checksum
+arithmetic and scalar oracle, but explicitly permits bounded per-item staging
+under `machine/workloads/smoke-stream-v1.json`. Only `verify` is admitted.
+It allocates one pinned input buffer, one pinned 8-byte partial,
+one device input buffer, and one device 8-byte partial. All four buffers and
+three CUDA events are reused for every chunk and released before a receipt is
+reported. The worker stages logical IDs, uploads them on a single CUDA stream,
+executes the device checksum kernel, downloads one compact partial, waits for
+completion, reduces in chunk order, and discards the staged IDs.
+
+The effective chunk count is bounded by the requested chunk, both declared
+memory budgets (including the 8-byte partial per domain), and platform pointer
+capacity. Rust rejects any worker report that differs from the requested
+geometry or exceeds either budget, then compares the final checksum to the
+independent scalar smoke oracle. CUDA topology and physical allocation counts
+are helper-reported rather than independently attested.
+
+On a CUDA host:
+
+```sh
+bash scripts/build-cuda-stream-helper.sh
+cargo build --release --locked -p qsol-mesh-cli
+target/release/mesh verify smoke-stream --items 100000 --chunk-items 4096 \
+  --pinned-limit-bytes 32776 --accelerator-limit-bytes 32776 --device 0 --json
+```
+
+Use `bash scripts/capture-phase3-cuda-stream.sh phase3-cuda-evidence` on a clean
+checkout to retain one-chunk and multi-chunk receipts, environment, and hashes.
+The capture resolves `NVCC` (or `nvcc` on PATH) once and records the same compiler
+executable and version used to build the helper.
+The roadmap's physical execution evidence boxes remain open until those
+receipts are captured and independently checked on a CUDA-capable host. The
+versioned physical contract is `machine/cuda-stream-contract.v1.json`.

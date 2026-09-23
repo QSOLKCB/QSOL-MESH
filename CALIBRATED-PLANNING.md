@@ -28,7 +28,7 @@ Total cost is their checked integer sum.
 
 For the current CPU smoke probe, `service_ns` measures the complete `run_smoke` call, including scoped thread lifecycle. `setup_ns = 0` means setup is not separately isolated by this probe; it is not a claim that CPU setup has zero physical cost. `transfer_ns = 0` is valid because the CPU smoke workload performs no cross-domain transfer.
 
-The generic planning contract already has separate setup/transfer fields for future accelerator evidence. No accelerator measurement is synthesized while the real accelerator executor remains absent.
+The opt-in v2 probe fills the setup and transfer fields from measured CUDA timing evidence. The default v1 probe remains CPU-only.
 
 ## Selection
 
@@ -59,9 +59,7 @@ The receipt is `qsol.mesh.calibrated-plan-receipt.v1` and records the observed t
 
 ## Accelerator boundary
 
-Accelerator and heterogeneous candidates are admissible only after an accelerator is observed and measured evidence is available. The current repository still has no real accelerator executor, so Phase 4 does not fabricate GPU service/setup/transfer measurements.
-
-This means the planner machinery is ready for accelerator evidence while current executable calibration remains CPU-only.
+Accelerator and heterogeneous candidates are admitted by the opt-in v2 contract only after the canonical CUDA helper reports an accelerator and supplies verified measurements. The default v1 calibration remains CPU-only. Retained physical CUDA calibration evidence is still pending; protocol fixtures are not hardware evidence.
 
 
 ## Receipt integrity hardening

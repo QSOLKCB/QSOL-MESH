@@ -3,13 +3,14 @@
   "contract_version": "2.0.0",
   "plan_identity": "mesh-calibration-smoke-v1",
   "activation": "mesh-calibrate-smoke---cuda",
-  "supersedes_for_opt_in_cuda_calibration": [
-    "calibrated-plan-contract.v1.json:measurement_contract.accelerator_measurements_admitted_by_planner",
-    "nvidia-executor-timing-contract.v2.json:activation.calibrator_may_consume_v2_timings"
-  ],
   "cuda_helper": "canonical-mesh-cuda-smoke",
   "workload_identity": "mesh-smoke-v1",
-  "candidate_set": ["canonical-cpu", "topology-derived-cpu", "cuda-only", "static-cpu-cuda"],
+  "candidate_set": [
+    "canonical-cpu",
+    "topology-derived-cpu",
+    "cuda-only",
+    "static-cpu-cuda"
+  ],
   "measurement": {
     "repeats": "positive",
     "cuda_protocol": "qsol.mesh.cuda-smoke-worker.v2",
@@ -23,7 +24,8 @@
     "heterogeneous_service_ns": "run_static_smoke_partition-end-to-end",
     "heterogeneous_setup_transfer_separately_isolated": false,
     "worker_topology_is_independently_attested": false,
-    "cuda_identity_stable_across_all_samples_and_candidates": true
+    "cuda_identity_stable_across_all_samples_and_candidates": true,
+    "cuda_timing_contract": "machine/nvidia-executor-timing-contract.v2.json"
   },
   "selection": {
     "canonical_checksum_is_independent_scalar_oracle": true,
@@ -32,5 +34,15 @@
     "adaptive_work_stealing": false
   },
   "receipt_schema": "qsol.mesh.calibrated-plan-receipt.v2",
-  "claim_boundary": "Host-specific helper-reported CUDA calibration only. It does not measure CPU/GPU kernel overlap, persist a physical memory pool, attest hardware identity, or establish universal performance."
+  "claim_boundary": "Host-specific helper-reported CUDA calibration only. It does not measure CPU/GPU kernel overlap, persist a physical memory pool, attest hardware identity, or establish universal performance.",
+  "base_planning_contract": "machine/calibrated-plan-contract.v1.json",
+  "request_domain": {
+    "calibration_items": "2..=u64::MAX",
+    "full_work_items": "calibration_items..=u64::MAX",
+    "repeats": "positive-usize",
+    "near_tie_bps": "0..=9999",
+    "device": "u32"
+  },
+  "receipt_requires_common_evidence_sections": true,
+  "cuda_host_evidence_status": "pending-retained-physical-calibration-receipt"
 }
