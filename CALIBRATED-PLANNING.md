@@ -99,7 +99,8 @@ that host-clock total. CPU and static heterogeneous candidates use measured
 end-to-end wall time; the latter does not separately isolate setup or transfer.
 
 The planner requires scalar checksum parity, stable CUDA worker identity
-between repeats, a deterministic near-tie margin, and full-work confirmation
+across all CUDA samples and candidate paths, a deterministic near-tie margin,
+and full-work confirmation
 before promotion. An absent or failing helper rejects the opt-in run. The v1
 CPU-only CLI and receipt remain available without `--cuda`. The v2 receipt is
 host-specific selection evidence, not a claim of kernel overlap, independent
