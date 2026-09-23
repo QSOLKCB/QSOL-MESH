@@ -644,7 +644,7 @@ fn measure_cuda_smoke(
             identity = Some(observed_identity);
         }
         samples.push((
-            run.launcher_total_ns(),
+            u128::from(run.launcher_total_ns()) + u128::from(run.verification_ns()),
             observed.setup_host_ns,
             observed.transfer_host_ns,
             observed.checksum,
@@ -657,7 +657,7 @@ fn measure_cuda_smoke(
     let sample = samples[repeats / 2];
     let setup_ns = u128::from(sample.1);
     let transfer_ns = u128::from(sample.2);
-    let service_ns = u128::from(sample.0)
+    let service_ns = sample.0
         .checked_sub(setup_ns + transfer_ns)
         .ok_or("CUDA timing components exceed launcher wall time")?;
     Ok(CostObservation {
@@ -823,7 +823,7 @@ pub fn cuda_calibrated_plan_receipt_json(run: &CudaCalibratedRun) -> Result<Stri
         .collect::<Result<Vec<_>, _>>()?
         .join(",");
     Ok(format!(
-        "{{\"schema\":\"{CUDA_CALIBRATED_PLAN_RECEIPT_SCHEMA}\",\"source_identity\":{{\"runtime\":\"qsol-mesh-cli\",\"plan_identity\":\"{CALIBRATED_PLAN_ID}\",\"plan_version\":\"2.0.0\"}},\"workload_identity\":{{\"workload_id\":\"{SMOKE_WORKLOAD_ID}\"}},\"requested_configuration\":{{\"calibration_items\":{},\"full_work_items\":{},\"repeats\":{},\"near_tie_bps\":{},\"device_ordinal\":{device}}},\"observed_topology\":{{\"available_cpu_workers\":{},\"accelerator_observed\":true,\"cuda_topology_source\":\"canonical-helper-reported\"}},\"effective_execution\":{{\"kind\":\"calibration-and-planning\",\"provisional_candidate_id\":{},\"selected_candidate_id\":{},\"canonical_candidate_id\":{},\"canonical_retained\":{},\"selection_reason\":\"{}\"}},\"memory_plan\":{{\"physical_memory_claim\":false}},\"calibration\":{{\"candidate_budget\":{CANDIDATE_BUDGET},\"candidates\":[{candidates}],\"observations\":[{calibration}],\"full_work_confirmation\":[{confirmation}],\"cost_scopes\":{{\"cpu\":\"run_smoke-end-to-end\",\"accelerator\":\"median-sample-launcher-wall-partitioned-by-nested-host-setup-and-D2H\",\"heterogeneous-static\":\"full-static-call-end-to-end\"}},\"cross_clock_kernel_timing_added\":false}},\"verification\":{{\"kind\":\"scalar-oracle-plus-full-work-confirmation\",\"verified\":true}},\"claim_boundary\":\"host-specific-helper-reported-CUDA-calibration-not-universal-performance-or-kernel-overlap-evidence\"}}",
+        "{{\"schema\":\"{CUDA_CALIBRATED_PLAN_RECEIPT_SCHEMA}\",\"source_identity\":{{\"runtime\":\"qsol-mesh-cli\",\"plan_identity\":\"{CALIBRATED_PLAN_ID}\",\"plan_version\":\"2.0.0\"}},\"workload_identity\":{{\"workload_id\":\"{SMOKE_WORKLOAD_ID}\"}},\"requested_configuration\":{{\"calibration_items\":{},\"full_work_items\":{},\"repeats\":{},\"near_tie_bps\":{},\"device_ordinal\":{device}}},\"observed_topology\":{{\"available_cpu_workers\":{},\"accelerator_observed\":true,\"cuda_topology_source\":\"canonical-helper-reported\"}},\"effective_execution\":{{\"kind\":\"calibration-and-planning\",\"provisional_candidate_id\":{},\"selected_candidate_id\":{},\"canonical_candidate_id\":{},\"canonical_retained\":{},\"selection_reason\":\"{}\"}},\"memory_plan\":{{\"physical_memory_claim\":false}},\"calibration\":{{\"candidate_budget\":{CANDIDATE_BUDGET},\"candidates\":[{candidates}],\"observations\":[{calibration}],\"full_work_confirmation\":[{confirmation}],\"cost_scopes\":{{\"cpu\":\"run_smoke-end-to-end\",\"accelerator\":\"median-sample-launcher-plus-verification-host-wall-partitioned-by-nested-setup-and-D2H\",\"heterogeneous-static\":\"full-static-call-end-to-end\"}},\"cross_clock_kernel_timing_added\":false}},\"verification\":{{\"kind\":\"scalar-oracle-plus-full-work-confirmation\",\"verified\":true}},\"claim_boundary\":\"host-specific-helper-reported-CUDA-calibration-not-universal-performance-or-kernel-overlap-evidence\"}}",
         plan.calibration_units,
         plan.full_work_units,
         plan.repeats,
