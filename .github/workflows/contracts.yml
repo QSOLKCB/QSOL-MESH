@@ -16,7 +16,7 @@ jobs:
       - name: Validate retained Phase 1 CUDA-host evidence
         run: python3 scripts/validate-retained-phase1-evidence.py
       - name: Validate CUDA build script syntax
-        run: bash -n scripts/build-cuda-helper.sh
+        run: bash -n scripts/build-cuda-helper.sh scripts/capture-phase4-cuda-calibration.sh
       - name: Validate JSON syntax independently
         run: |
           python3 - <<'PY'
