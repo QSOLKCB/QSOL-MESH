@@ -308,7 +308,15 @@ fn parse_calibration(args: &[String]) -> Result<(u64, u64, usize, u32, bool, boo
         return Err("CUDA calibration needs at least two items for static partitioning".into());
     }
 
-    Ok((calibration_items, full_items, repeats, near_tie_bps, json, cuda, device))
+    Ok((
+        calibration_items,
+        full_items,
+        repeats,
+        near_tie_bps,
+        json,
+        cuda,
+        device,
+    ))
 }
 
 fn parse_memory_plan(args: &[String]) -> Result<(MemoryPlanRequest, bool), String> {
@@ -544,7 +552,12 @@ fn print_calibration(args: &[String]) -> Result<(), String> {
         parse_calibration(args)?;
     let cuda_run = if cuda {
         Some(calibrate_cuda_smoke_host(
-            available_workers(), calibration_items, full_items, repeats, near_tie_bps, device,
+            available_workers(),
+            calibration_items,
+            full_items,
+            repeats,
+            near_tie_bps,
+            device,
         )?)
     } else {
         None
@@ -552,9 +565,16 @@ fn print_calibration(args: &[String]) -> Result<(), String> {
     let cpu_plan = if cuda {
         None
     } else {
-        Some(calibrate_cpu_smoke_host(
-            available_workers(), calibration_items, full_items, repeats, near_tie_bps,
-        ).map_err(str::to_owned)?)
+        Some(
+            calibrate_cpu_smoke_host(
+                available_workers(),
+                calibration_items,
+                full_items,
+                repeats,
+                near_tie_bps,
+            )
+            .map_err(str::to_owned)?,
+        )
     };
     let plan = if let Some(run) = &cuda_run {
         run.plan()
