@@ -8,6 +8,7 @@ Normative machine-readable authority:
 - `machine/memory-model.v1.json`
 - `machine/memory-plan-contract.v1.json`
 - `machine/calibrated-plan-contract.v1.json`
+- `machine/calibrated-plan-contract.v2.json`
 - `machine/nvidia-executor-contract.v1.json`
 - `machine/nvidia-executor-timing-contract.v2.json`
 - `machine/static-split-contract.v1.json`

@@ -8,7 +8,10 @@ use qsol_mesh_core::{
     available_workers,
     concurrent_split::{concurrent_split_receipt_json, run_concurrent_smoke_partition},
     memory::{build_streaming_memory_plan, memory_plan_receipt_json, MemoryPlanRequest},
-    planner::{calibrate_cpu_smoke_host, calibrated_plan_receipt_json, DEFAULT_NEAR_TIE_BPS},
+    planner::{
+        calibrate_cpu_smoke_host, calibrate_cuda_smoke_host, calibrated_plan_receipt_json,
+        cuda_calibrated_plan_receipt_json, DEFAULT_NEAR_TIE_BPS,
+    },
     run_smoke,
     static_split::{
         run_static_smoke_partition, static_split_receipt_json, validate_static_split_request,
@@ -19,7 +22,7 @@ use qsol_mesh_core::{
 use std::{env, process::ExitCode};
 
 fn usage() -> &'static str {
-    "Usage:\n  mesh inspect [--json]\n  mesh run smoke [--items N] [--workers N] [--json]\n  mesh verify smoke [--items N] [--workers N] [--json]\n  mesh run smoke-cuda [--items N] [--device N] [--timing] [--json]\n  mesh verify smoke-cuda [--items N] [--device N] [--timing] [--json]\n  mesh run smoke-static --cpu-items N [--items N] [--cpu-workers N] [--device N] [--json]\n  mesh verify smoke-static --cpu-items N [--items N] [--cpu-workers N] [--device N] [--json]\n  mesh run smoke-concurrent --cpu-items N [--items N] [--cpu-workers N] [--device N] [--json]\n  mesh verify smoke-concurrent --cpu-items N [--items N] [--cpu-workers N] [--device N] [--json]\n  mesh calibrate smoke [--calibration-items N] [--full-items N] [--repeats N] [--near-tie-bps N] [--json]\n  mesh plan memory [--total-bytes N] [--chunk-bytes N] [--pinned-limit-bytes N] [--accelerator-limit-bytes N] [--partial-bytes N] [--json]\n  mesh <calibrate|plan|receipt> [--json]\n"
+    "Usage:\n  mesh inspect [--json]\n  mesh run smoke [--items N] [--workers N] [--json]\n  mesh verify smoke [--items N] [--workers N] [--json]\n  mesh run smoke-cuda [--items N] [--device N] [--timing] [--json]\n  mesh verify smoke-cuda [--items N] [--device N] [--timing] [--json]\n  mesh run smoke-static --cpu-items N [--items N] [--cpu-workers N] [--device N] [--json]\n  mesh verify smoke-static --cpu-items N [--items N] [--cpu-workers N] [--device N] [--json]\n  mesh run smoke-concurrent --cpu-items N [--items N] [--cpu-workers N] [--device N] [--json]\n  mesh verify smoke-concurrent --cpu-items N [--items N] [--cpu-workers N] [--device N] [--json]\n  mesh calibrate smoke [--calibration-items N] [--full-items N] [--repeats N] [--near-tie-bps N] [--cuda] [--device N] [--json]\n  mesh plan memory [--total-bytes N] [--chunk-bytes N] [--pinned-limit-bytes N] [--accelerator-limit-bytes N] [--partial-bytes N] [--json]\n  mesh <calibrate|plan|receipt> [--json]\n"
 }
 
 fn parse_smoke(args: &[String]) -> Result<(u64, usize, bool), String> {
@@ -196,12 +199,16 @@ fn parse_static_split(args: &[String]) -> Result<(StaticSplitRequest, bool), Str
     Ok((request, json))
 }
 
-fn parse_calibration(args: &[String]) -> Result<(u64, u64, usize, u32, bool), String> {
+fn parse_calibration(args: &[String]) -> Result<(u64, u64, usize, u32, bool, bool, u32), String> {
     let mut calibration_items = 10_000_u64;
     let mut full_items = 100_000_u64;
     let mut repeats = 3_usize;
     let mut near_tie_bps = DEFAULT_NEAR_TIE_BPS;
     let mut json = false;
+    let mut cuda = false;
+    let mut device = 0_u32;
+    let mut seen_cuda = false;
+    let mut seen_device = false;
     let mut seen_json = false;
     let mut seen_calibration = false;
     let mut seen_full = false;
@@ -220,11 +227,27 @@ fn parse_calibration(args: &[String]) -> Result<(u64, u64, usize, u32, bool), St
             i += 1;
             continue;
         }
+        if flag == "--cuda" {
+            if seen_cuda {
+                return Err("--cuda may be specified only once".into());
+            }
+            seen_cuda = true;
+            cuda = true;
+            i += 1;
+            continue;
+        }
 
         let value = args
             .get(i + 1)
             .ok_or_else(|| format!("{flag} requires a value"))?;
         match flag {
+            "--device" => {
+                if seen_device {
+                    return Err("--device may be specified only once".into());
+                }
+                seen_device = true;
+                device = value.parse::<u32>().map_err(|_| "--device must be u32")?;
+            }
             "--calibration-items" => {
                 if seen_calibration {
                     return Err("--calibration-items may be specified only once".into());
@@ -278,8 +301,14 @@ fn parse_calibration(args: &[String]) -> Result<(u64, u64, usize, u32, bool), St
     if near_tie_bps >= 10_000 {
         return Err("--near-tie-bps must be less than 10000".into());
     }
+    if seen_device && !cuda {
+        return Err("--device requires --cuda".into());
+    }
+    if cuda && calibration_items < 2 {
+        return Err("CUDA calibration needs at least two items for static partitioning".into());
+    }
 
-    Ok((calibration_items, full_items, repeats, near_tie_bps, json))
+    Ok((calibration_items, full_items, repeats, near_tie_bps, json, cuda, device))
 }
 
 fn parse_memory_plan(args: &[String]) -> Result<(MemoryPlanRequest, bool), String> {
@@ -511,20 +540,37 @@ fn print_concurrent_split(command: Command, args: &[String]) -> Result<(), Strin
 }
 
 fn print_calibration(args: &[String]) -> Result<(), String> {
-    let (calibration_items, full_items, repeats, near_tie_bps, json) = parse_calibration(args)?;
-    let plan = calibrate_cpu_smoke_host(
-        available_workers(),
-        calibration_items,
-        full_items,
-        repeats,
-        near_tie_bps,
-    )
-    .map_err(str::to_owned)?;
+    let (calibration_items, full_items, repeats, near_tie_bps, json, cuda, device) =
+        parse_calibration(args)?;
+    let cuda_run = if cuda {
+        Some(calibrate_cuda_smoke_host(
+            available_workers(), calibration_items, full_items, repeats, near_tie_bps, device,
+        )?)
+    } else {
+        None
+    };
+    let cpu_plan = if cuda {
+        None
+    } else {
+        Some(calibrate_cpu_smoke_host(
+            available_workers(), calibration_items, full_items, repeats, near_tie_bps,
+        ).map_err(str::to_owned)?)
+    };
+    let plan = if let Some(run) = &cuda_run {
+        run.plan()
+    } else {
+        cpu_plan.as_ref().ok_or("CPU calibration result missing")?
+    };
 
     if json {
         println!(
             "{}",
-            calibrated_plan_receipt_json(&plan).map_err(str::to_owned)?
+            if cuda {
+                cuda_calibrated_plan_receipt_json(cuda_run.as_ref().ok_or("CUDA result missing")?)
+                    .map_err(str::to_owned)?
+            } else {
+                calibrated_plan_receipt_json(&plan).map_err(str::to_owned)?
+            }
         );
     } else {
         println!(

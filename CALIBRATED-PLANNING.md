@@ -77,3 +77,28 @@ Every cost observation records `effective_cpu_workers` separately from the candi
 For CPU smoke observations, `setup_ns` and `transfer_ns` must remain zero because setup is already inside the service measurement and the workload performs no cross-domain transfer.
 
 The serializer revalidates the complete public `CalibratedPlan` before emitting a receipt with `verification.verified = true`. Extra confirmation observations are rejected, and every retained confirmation must preserve canonical checksum parity.
+
+## Opt-in CUDA calibration (v2)
+
+After building the canonical CUDA helper on a CUDA host, run:
+
+```sh
+mesh calibrate smoke --cuda --device 0 \
+  --calibration-items 10000 --full-items 100000 --repeats 3 --json
+```
+
+The bounded candidate set now includes CPU, accelerator-only, and a 50/50
+static CPU/CUDA partition. Each CUDA-only repeat uses the verified timing-v2
+helper. The sample with median launcher wall time supplies all three additive
+cost fields: setup and D2H transfer are nested host intervals; service is the
+remaining launcher wall interval, including process and teardown overhead.
+The CUDA event kernel interval is recorded by the helper but is never added to
+that host-clock total. CPU and static heterogeneous candidates use measured
+end-to-end wall time; the latter does not separately isolate setup or transfer.
+
+The planner requires scalar checksum parity, stable CUDA worker identity
+between repeats, a deterministic near-tie margin, and full-work confirmation
+before promotion. An absent or failing helper rejects the opt-in run. The v1
+CPU-only CLI and receipt remain available without `--cuda`. The v2 receipt is
+host-specific selection evidence, not a claim of kernel overlap, independent
+hardware attestation, or persistent memory reuse.
