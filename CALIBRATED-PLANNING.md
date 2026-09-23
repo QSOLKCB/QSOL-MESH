@@ -89,9 +89,11 @@ mesh calibrate smoke --cuda --device 0 \
 
 The bounded candidate set now includes CPU, accelerator-only, and a 50/50
 static CPU/CUDA partition. Each CUDA-only repeat uses the verified timing-v2
-helper. The sample with median launcher wall time supplies all three additive
+helper. The sample with median launcher plus verification time supplies all three additive
 cost fields: setup and D2H transfer are nested host intervals; service is the
-remaining launcher wall interval, including process and teardown overhead.
+remaining launcher wall interval plus the separate Rust scalar-verification
+interval, including process and teardown overhead. This makes the total cost
+include verification on CPU, CUDA, and static heterogeneous candidates.
 The CUDA event kernel interval is recorded by the helper but is never added to
 that host-clock total. CPU and static heterogeneous candidates use measured
 end-to-end wall time; the latter does not separately isolate setup or transfer.
