@@ -7,6 +7,7 @@ use qsol_mesh_core::{
     },
     available_workers,
     concurrent_split::{concurrent_split_receipt_json, run_concurrent_smoke_partition},
+    galaxy_runtime::verify_cpu_parity,
     memory::{build_streaming_memory_plan, memory_plan_receipt_json, MemoryPlanRequest},
     planner::{calibrate_cpu_smoke_host, calibrated_plan_receipt_json, DEFAULT_NEAR_TIE_BPS},
     run_smoke,
@@ -16,10 +17,70 @@ use qsol_mesh_core::{
     },
     Command, CONTRACT_SCHEMA, CONTRACT_VERSION, SMOKE_WORKLOAD_ID,
 };
-use std::{env, process::ExitCode};
+use std::{env, path::PathBuf, process::ExitCode};
 
 fn usage() -> &'static str {
-    "Usage:\n  mesh inspect [--json]\n  mesh run smoke [--items N] [--workers N] [--json]\n  mesh verify smoke [--items N] [--workers N] [--json]\n  mesh run smoke-cuda [--items N] [--device N] [--timing] [--json]\n  mesh verify smoke-cuda [--items N] [--device N] [--timing] [--json]\n  mesh run smoke-static --cpu-items N [--items N] [--cpu-workers N] [--device N] [--json]\n  mesh verify smoke-static --cpu-items N [--items N] [--cpu-workers N] [--device N] [--json]\n  mesh run smoke-concurrent --cpu-items N [--items N] [--cpu-workers N] [--device N] [--json]\n  mesh verify smoke-concurrent --cpu-items N [--items N] [--cpu-workers N] [--device N] [--json]\n  mesh calibrate smoke [--calibration-items N] [--full-items N] [--repeats N] [--near-tie-bps N] [--json]\n  mesh plan memory [--total-bytes N] [--chunk-bytes N] [--pinned-limit-bytes N] [--accelerator-limit-bytes N] [--partial-bytes N] [--json]\n  mesh <calibrate|plan|receipt> [--json]\n"
+    "Usage:\n  mesh inspect [--json]\n  mesh run smoke [--items N] [--workers N] [--json]\n  mesh verify smoke [--items N] [--workers N] [--json]\n  mesh run smoke-cuda [--items N] [--device N] [--timing] [--json]\n  mesh verify smoke-cuda [--items N] [--device N] [--timing] [--json]\n  mesh run smoke-static --cpu-items N [--items N] [--cpu-workers N] [--device N] [--json]\n  mesh verify smoke-static --cpu-items N [--items N] [--cpu-workers N] [--device N] [--json]\n  mesh run smoke-concurrent --cpu-items N [--items N] [--cpu-workers N] [--device N] [--json]\n  mesh verify smoke-concurrent --cpu-items N [--items N] [--cpu-workers N] [--device N] [--json]\n  mesh verify galaxy-cpu --binary PATH [--logical U64] [--resident N] [--frames N] [--seed N] [--partitions N] [--json]\n  mesh calibrate smoke [--calibration-items N] [--full-items N] [--repeats N] [--near-tie-bps N] [--json]\n  mesh plan memory [--total-bytes N] [--chunk-bytes N] [--pinned-limit-bytes N] [--accelerator-limit-bytes N] [--partial-bytes N] [--json]\n  mesh <calibrate|plan|receipt> [--json]\n"
+}
+
+fn print_galaxy_cpu_parity(args: &[String]) -> Result<(), String> {
+    let mut binary = None;
+    let mut logical = u64::MAX;
+    let mut resident = 8_388_608_u64;
+    let mut frames = 8_u32;
+    let mut seed = 303_u32;
+    let mut partitions = 2_usize;
+    let mut json = false;
+    let mut seen = std::collections::HashSet::new();
+    let mut index = 0;
+    while index < args.len() {
+        let flag = args[index].as_str();
+        if !seen.insert(flag) {
+            return Err(format!("duplicate GALAXY option: {flag}"));
+        }
+        if flag == "--json" {
+            json = true;
+            index += 1;
+            continue;
+        }
+        let value = args
+            .get(index + 1)
+            .ok_or_else(|| format!("{flag} requires a value"))?;
+        match flag {
+            "--binary" => binary = Some(PathBuf::from(value)),
+            "--logical" => logical = value.parse().map_err(|_| "--logical must be u64")?,
+            "--resident" => resident = value.parse().map_err(|_| "--resident must be u64")?,
+            "--frames" => frames = value.parse().map_err(|_| "--frames must be u32")?,
+            "--seed" => seed = value.parse().map_err(|_| "--seed must be u32")?,
+            "--partitions" => {
+                partitions = value.parse().map_err(|_| "--partitions must be usize")?
+            }
+            _ => return Err(format!("unsupported GALAXY option: {flag}")),
+        }
+        index += 2;
+    }
+    let binary = binary.ok_or("--binary is required for GALAXY CPU parity")?;
+    let binary = binary
+        .canonicalize()
+        .map_err(|error| format!("GALAXY binary path is invalid: {error}"))?;
+    let parity = verify_cpu_parity(&binary, logical, resident, frames, seed, partitions)?;
+    if json {
+        println!(
+            "{{\"schema\":\"qsol.mesh.galaxy-cpu-parity-receipt.v1\",\"source_identity\":{{\"runtime\":\"qsol-mesh-cli\",\"upstream_protocol\":\"galaxy.cpu-range.v1\"}},\"workload_identity\":{{\"workload_id\":\"galaxy-v0.4.0-bam-lut-q30\",\"frozen_cpu_runtime_blob\":\"b12220565f6059482f706d46db1d9d2c29a9cc82\"}},\"requested_configuration\":{{\"logical_population\":{logical},\"resident_particles\":{resident},\"frames\":{frames},\"seed\":{seed},\"partitions\":{partitions}}},\"effective_execution\":{{\"backend\":\"galaxy-owned-cpu-range\",\"partial_count\":{}}},\"verification\":{{\"full_checksum\":\"{:016x}\",\"partitioned_checksum\":\"{:016x}\",\"partitioned_parity\":true,\"archived_oracle_verified\":{}}},\"claim_boundary\":\"external-galaxy-cpu-range-output-parity-not-gpu-execution-not-binary-provenance\"}}",
+            parity.partitioned.len(),
+            parity.full.checksum,
+            parity.checksum,
+            parity.archived_oracle_verified
+        );
+    } else {
+        println!(
+            "galaxy-cpu checksum={:016x} partitions={} parity=true archived_oracle_verified={}",
+            parity.checksum,
+            parity.partitioned.len(),
+            parity.archived_oracle_verified
+        );
+    }
+    Ok(())
 }
 
 fn parse_smoke(args: &[String]) -> Result<(u64, usize, bool), String> {
@@ -607,6 +668,9 @@ fn main() -> ExitCode {
             if args.get(1).map(String::as_str) == Some("smoke-concurrent") =>
         {
             print_concurrent_split(command, &args[2..])
+        }
+        Command::Verify if args.get(1).map(String::as_str) == Some("galaxy-cpu") => {
+            print_galaxy_cpu_parity(&args[2..])
         }
         Command::Calibrate if args.get(1).map(String::as_str) == Some("smoke") => {
             print_calibration(&args[2..])

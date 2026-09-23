@@ -11,6 +11,7 @@ EXPECTED = {
     "memory-model.v1.json":"qsol.mesh.memory-model.v1",
     "memory-plan-contract.v1.json":"qsol.mesh.memory-plan-contract.v1",
     "calibrated-plan-contract.v1.json":"qsol.mesh.calibrated-plan-contract.v1",
+    "galaxy-range-contract.v2.json":"qsol.mesh.galaxy-range-adapter.v2",
     "nvidia-executor-contract.v1.json":"qsol.mesh.nvidia-executor-contract.v1",
     "nvidia-executor-timing-contract.v2.json":"qsol.mesh.nvidia-executor-timing-contract.v2",
     "static-split-contract.v1.json":"qsol.mesh.static-split-contract.v1",

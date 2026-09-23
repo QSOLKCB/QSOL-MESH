@@ -3,6 +3,7 @@
 pub mod accelerator;
 pub mod concurrent_split;
 pub mod galaxy;
+pub mod galaxy_runtime;
 pub mod memory;
 pub mod planner;
 pub mod static_split;
