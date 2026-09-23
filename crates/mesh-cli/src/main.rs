@@ -9,6 +9,7 @@ use qsol_mesh_core::{
     concurrent_split::{concurrent_split_receipt_json, run_concurrent_smoke_partition},
     galaxy_runtime::verify_cpu_parity,
     memory::{build_streaming_memory_plan, memory_plan_receipt_json, MemoryPlanRequest},
+    memory_runtime::{run_stream, stream_receipt_json, StreamRequest},
     planner::{calibrate_cpu_smoke_host, calibrated_plan_receipt_json, DEFAULT_NEAR_TIE_BPS},
     run_smoke,
     static_split::{
@@ -20,7 +21,58 @@ use qsol_mesh_core::{
 use std::{env, path::PathBuf, process::ExitCode};
 
 fn usage() -> &'static str {
-    "Usage:\n  mesh inspect [--json]\n  mesh run smoke [--items N] [--workers N] [--json]\n  mesh verify smoke [--items N] [--workers N] [--json]\n  mesh run smoke-cuda [--items N] [--device N] [--timing] [--json]\n  mesh verify smoke-cuda [--items N] [--device N] [--timing] [--json]\n  mesh run smoke-static --cpu-items N [--items N] [--cpu-workers N] [--device N] [--json]\n  mesh verify smoke-static --cpu-items N [--items N] [--cpu-workers N] [--device N] [--json]\n  mesh run smoke-concurrent --cpu-items N [--items N] [--cpu-workers N] [--device N] [--json]\n  mesh verify smoke-concurrent --cpu-items N [--items N] [--cpu-workers N] [--device N] [--json]\n  mesh verify galaxy-cpu --binary PATH [--logical U64] [--resident N] [--frames N] [--seed N] [--partitions N] [--json]\n  mesh calibrate smoke [--calibration-items N] [--full-items N] [--repeats N] [--near-tie-bps N] [--json]\n  mesh plan memory [--total-bytes N] [--chunk-bytes N] [--pinned-limit-bytes N] [--accelerator-limit-bytes N] [--partial-bytes N] [--json]\n  mesh <calibrate|plan|receipt> [--json]\n"
+    "Usage:\n  mesh inspect [--json]\n  mesh run smoke [--items N] [--workers N] [--json]\n  mesh verify smoke [--items N] [--workers N] [--json]\n  mesh run smoke-cuda [--items N] [--device N] [--timing] [--json]\n  mesh verify smoke-cuda [--items N] [--device N] [--timing] [--json]\n  mesh verify smoke-stream [--items N] [--chunk-items N] [--pinned-limit-bytes N] [--accelerator-limit-bytes N] [--device N] [--json]\n  mesh run smoke-static --cpu-items N [--items N] [--cpu-workers N] [--device N] [--json]\n  mesh verify smoke-static --cpu-items N [--items N] [--cpu-workers N] [--device N] [--json]\n  mesh run smoke-concurrent --cpu-items N [--items N] [--cpu-workers N] [--device N] [--json]\n  mesh verify smoke-concurrent --cpu-items N [--items N] [--cpu-workers N] [--device N] [--json]\n  mesh verify galaxy-cpu --binary PATH [--logical U64] [--resident N] [--frames N] [--seed N] [--partitions N] [--json]\n  mesh calibrate smoke [--calibration-items N] [--full-items N] [--repeats N] [--near-tie-bps N] [--json]\n  mesh plan memory [--total-bytes N] [--chunk-bytes N] [--pinned-limit-bytes N] [--accelerator-limit-bytes N] [--partial-bytes N] [--json]\n  mesh <calibrate|plan|receipt> [--json]\n"
+}
+
+fn print_smoke_stream(command: Command, args: &[String]) -> Result<(), String> {
+    let mut request = StreamRequest {
+        items: 100_000,
+        requested_chunk_items: 16_384,
+        pinned_limit_bytes: 131_080,
+        accelerator_limit_bytes: 131_080,
+        device: 0,
+    };
+    let mut seen = std::collections::HashSet::new();
+    let mut json = false;
+    let mut index = 0;
+    while index < args.len() {
+        let flag = args[index].as_str();
+        if !seen.insert(flag) {
+            return Err(format!("duplicate stream option: {flag}"));
+        }
+        if flag == "--json" {
+            json = true;
+            index += 1;
+            continue;
+        }
+        let value = args
+            .get(index + 1)
+            .ok_or_else(|| format!("{flag} requires a value"))?;
+        let number: u64 = value.parse().map_err(|_| format!("{flag} must be u64"))?;
+        match flag {
+            "--items" => request.items = number,
+            "--chunk-items" => request.requested_chunk_items = number,
+            "--pinned-limit-bytes" => request.pinned_limit_bytes = number,
+            "--accelerator-limit-bytes" => request.accelerator_limit_bytes = number,
+            "--device" => request.device = number.try_into().map_err(|_| "--device must be u32")?,
+            _ => return Err(format!("unsupported stream option: {flag}")),
+        }
+        index += 2;
+    }
+    let run = run_stream(request)?;
+    if json {
+        println!(
+            "{}",
+            stream_receipt_json(command.as_str(), &run).map_err(str::to_owned)?
+        );
+    } else {
+        let observed = run.observation();
+        println!(
+            "smoke-stream chunks={} chunk_items={} checksum={:016x} verified=true",
+            observed.chunks, observed.chunk_items, observed.checksum
+        );
+    }
+    Ok(())
 }
 
 fn print_galaxy_cpu_parity(args: &[String]) -> Result<(), String> {
@@ -658,6 +710,11 @@ fn main() -> ExitCode {
         }
         Command::Run | Command::Verify if args.get(1).map(String::as_str) == Some("smoke-cuda") => {
             print_cuda_smoke(command, &args[2..])
+        }
+        Command::Run | Command::Verify
+            if args.get(1).map(String::as_str) == Some("smoke-stream") =>
+        {
+            print_smoke_stream(command, &args[2..])
         }
         Command::Run | Command::Verify
             if args.get(1).map(String::as_str) == Some("smoke-static") =>

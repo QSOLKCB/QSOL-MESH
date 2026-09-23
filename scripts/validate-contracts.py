@@ -10,6 +10,7 @@ EXPECTED = {
     "workload-contract.v1.json":"qsol.mesh.workload-contract.v1",
     "memory-model.v1.json":"qsol.mesh.memory-model.v1",
     "memory-plan-contract.v1.json":"qsol.mesh.memory-plan-contract.v1",
+    "cuda-stream-contract.v1.json":"qsol.mesh.cuda-stream-contract.v1",
     "calibrated-plan-contract.v1.json":"qsol.mesh.calibrated-plan-contract.v1",
     "galaxy-range-contract.v2.json":"qsol.mesh.galaxy-range-adapter.v2",
     "nvidia-executor-contract.v1.json":"qsol.mesh.nvidia-executor-contract.v1",
@@ -191,6 +192,49 @@ if memory_plan["materialization_boundary"] != {
     raise SystemExit("memory materialization boundary drift")
 if memory_plan["receipt_contract"]["schema"] != "qsol.mesh.memory-plan-receipt.v1":
     raise SystemExit("memory plan receipt schema drift")
+
+stream = loaded["cuda-stream-contract.v1.json"]
+if stream["workload_identity"] != "mesh-smoke-v1" or stream["worker_protocol"] != "qsol.mesh.cuda-stream-worker.v1":
+    raise SystemExit("CUDA stream workload or worker protocol drift")
+if stream["receipt_schema"] != "qsol.mesh.cuda-stream-receipt.v1":
+    raise SystemExit("CUDA stream receipt identity drift")
+if stream["verified_worker_location"] != "application-target-directory/mesh-cuda-stream":
+    raise SystemExit("CUDA stream canonical worker boundary drift")
+if stream["physical_memory"] != {
+    "host_pinned_staging_allocation": "cudaHostAlloc-once-per-run",
+    "host_pinned_partial_allocation": "cudaHostAlloc-once-per-run",
+    "device_input_pool_allocation": "cudaMalloc-once-per-run",
+    "device_partial_allocation": "cudaMalloc-once-per-run",
+    "partial_bytes": 8,
+    "peak_pinned_bytes": "effective_chunk_items-times-8-plus-8",
+    "peak_accelerator_bytes": "effective_chunk_items-times-8-plus-8",
+    "effective_chunk_items": "min(items,requested_chunk_items,floor((pinned_limit-8)/8),floor((accelerator_limit-8)/8),floor(size_t_max/8))",
+    "allocation_reuse_required": True,
+    "chunk_count": "ceil(items/effective_chunk_items)",
+}:
+    raise SystemExit("CUDA stream physical memory contract drift")
+if stream["event_graph"] != ["stage-host-pinned", "upload-accelerator", "execute", "download-partial", "reduce", "discard"] or stream["cuda_events_per_chunk"] != 3:
+    raise SystemExit("CUDA stream event graph drift")
+if stream["verification"] != {
+    "independent_scalar_oracle_required": True,
+    "strict_single_line_worker_protocol": True,
+    "required_common_evidence_sections": True,
+    "helper_topology_independently_attested": False,
+}:
+    raise SystemExit("CUDA stream verification boundary drift")
+if stream["ci_boundary"] != {
+    "default_runner_has_cuda_execution_evidence": False,
+    "retained_cuda_host_evidence_required_for_roadmap_completion": True,
+}:
+    raise SystemExit("CUDA stream hardware evidence boundary drift")
+worker_source = (ROOT / "accelerators/cuda/mesh_stream_cuda.cu").read_text(encoding="utf-8")
+runtime_source = (ROOT / "crates/mesh-core/src/memory_runtime.rs").read_text(encoding="utf-8")
+for token in ("cudaHostAlloc", "cudaMalloc", "cudaMemcpyAsync", "cudaEventRecord", "cudaEventSynchronize", "cudaFreeHost", "cudaFree"):
+    if token not in worker_source:
+        raise SystemExit(f"CUDA stream worker lost physical primitive: {token}")
+for token in ("canonical_cuda_worker_path", "smoke_reference", "host_pinned_peak_bytes", "accelerator_peak_bytes", "stream_receipt_json"):
+    if token not in runtime_source:
+        raise SystemExit(f"CUDA stream Rust launcher lost verification: {token}")
 
 memory_source = (ROOT / "crates/mesh-core/src/memory.rs").read_text(encoding="utf-8")
 for token in (

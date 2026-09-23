@@ -110,9 +110,16 @@ mesh plan memory \
   --json
 ```
 
-This is **planning evidence only**. The plan hard-fails if it attempts to claim physical materialization. Real pinned host pages and persistent accelerator-local allocations remain backend-owned and are still gated on the real accelerator executor.
+This is **planning evidence only**. The plan hard-fails if it attempts to claim physical materialization. The separate experimental CUDA worker below owns physical allocations; its execution evidence remains gated on a CUDA-host run.
 
 See `MEMORY-BROKER.md` and `machine/memory-plan-contract.v1.json`.
+
+A separate experimental `mesh verify smoke-stream` path now implements bounded
+CUDA-owned pinned staging, reusable device allocation, and ordered compact
+reductions for the synthetic smoke workload. Its physical execution claim
+requires a CUDA-host run; see `MEMORY-BROKER.md` and
+`machine/cuda-stream-contract.v1.json` for the executable contract and capture
+command. The existing `mesh plan memory` receipt remains planning-only.
 
 
 ## Phase 4 calibrated planning
