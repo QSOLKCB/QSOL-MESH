@@ -268,3 +268,58 @@ jobs:
           for command in calibrate plan receipt; do
             cargo run -q -p qsol-mesh-cli --locked -- "$command" --json | grep -q '"status":"not-implemented"'
           done
+
+  galaxy-cpu-parity:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check out merged GALAXY CPU range authority
+        uses: actions/checkout@v4
+        with:
+          repository: QSOLKCB/GALAXY
+          ref: 623c43a13c0696533164826ec71896488c7aed44
+          path: galaxy-upstream
+      - name: Install pinned Rust
+        run: |
+          rustup toolchain install 1.85.1 --profile minimal
+          rustup default 1.85.1
+      - name: Build both runtimes
+        run: |
+          cargo build --release --locked -p qsol-mesh-cli
+          cargo build --release --locked --manifest-path galaxy-upstream/cpu-runtime/Cargo.toml --bin galaxy-cpu
+      - name: Verify bounded and frozen partitioned parity
+        run: |
+          mkdir -p parity-receipts
+          ./target/release/mesh verify galaxy-cpu --binary "$GITHUB_WORKSPACE/galaxy-upstream/cpu-runtime/target/release/galaxy-cpu" --logical 4096 --resident 1024 --frames 2 --seed 303 --partitions 4 --json > parity-receipts/bounded.json
+          ./target/release/mesh verify galaxy-cpu --binary "$GITHUB_WORKSPACE/galaxy-upstream/cpu-runtime/target/release/galaxy-cpu" --partitions 2 --json > parity-receipts/frozen.json
+          python3 - <<'PY'
+          import hashlib
+          import json
+          from pathlib import Path
+
+          bounded = json.loads(Path("parity-receipts/bounded.json").read_text())
+          frozen = json.loads(Path("parity-receipts/frozen.json").read_text())
+          for receipt, partitions in [(bounded, 4), (frozen, 2)]:
+              assert receipt["schema"] == "qsol.mesh.galaxy-cpu-parity-receipt.v1"
+              assert receipt["verification"]["partitioned_parity"] is True
+              assert receipt["verification"]["full_checksum"] == receipt["verification"]["partitioned_checksum"]
+              assert receipt["effective_execution"]["partial_count"] == partitions
+          assert frozen["requested_configuration"] == {
+              "logical_population": 18446744073709551615,
+              "resident_particles": 8388608,
+              "frames": 8,
+              "seed": 303,
+              "partitions": 2,
+          }
+          assert frozen["verification"]["full_checksum"] == "8d6f07bd77e2fc16"
+          assert frozen["verification"]["archived_oracle_verified"] is True
+          assert bounded["verification"]["archived_oracle_verified"] is False
+          for path in sorted(Path("parity-receipts").glob("*.json")):
+              print(f"{path}: {hashlib.sha256(path.read_bytes()).hexdigest()}")
+          PY
+      - name: Retain MESH parity receipts
+        uses: actions/upload-artifact@v4
+        with:
+          name: galaxy-cpu-parity
+          path: parity-receipts/*.json
+          if-no-files-found: error
