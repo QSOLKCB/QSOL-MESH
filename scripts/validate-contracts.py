@@ -11,6 +11,7 @@ EXPECTED = {
     "memory-model.v1.json":"qsol.mesh.memory-model.v1",
     "memory-plan-contract.v1.json":"qsol.mesh.memory-plan-contract.v1",
     "calibrated-plan-contract.v1.json":"qsol.mesh.calibrated-plan-contract.v1",
+    "galaxy-range-contract.v2.json":"qsol.mesh.galaxy-range-adapter.v2",
     "nvidia-executor-contract.v1.json":"qsol.mesh.nvidia-executor-contract.v1",
     "nvidia-executor-timing-contract.v2.json":"qsol.mesh.nvidia-executor-timing-contract.v2",
     "static-split-contract.v1.json":"qsol.mesh.static-split-contract.v1",
@@ -101,10 +102,58 @@ if oracle != {
     "float_checksum": "adf6d6e30d3ad26d",
 }:
     raise SystemExit("GALAXY archived oracle drift")
-if galaxy["verification_contract"]["live_partitioned_oracle_status"] != "pending-galaxy-owned-range-entrypoint":
-    raise SystemExit("GALAXY live parity must remain capability-gated")
+if galaxy["verification_contract"]["live_partitioned_oracle_status"] != "admitted-galaxy-owned-cpu-range-v1":
+    raise SystemExit("GALAXY live CPU parity admission drift")
+if galaxy["verification_contract"].get("live_cpu_range_contract") != "machine/galaxy-range-contract.v2.json":
+    raise SystemExit("GALAXY live CPU range contract binding drift")
+if galaxy["baseline_contract"].get("cpu_only_live_evidence_available") is not True:
+    raise SystemExit("GALAXY CPU baseline evidence drift")
 if galaxy["baseline_contract"]["requested_plan_is_execution_evidence"] is not False:
     raise SystemExit("requested GALAXY baseline plans must not imply execution evidence")
+
+galaxy_range = loaded["galaxy-range-contract.v2.json"]
+if galaxy_range["workload_id"] != galaxy["workload_id"] or galaxy_range["contract_version"] != "2.0.0":
+    raise SystemExit("GALAXY live range identity drift")
+if galaxy_range["upstream_authority"] != {
+    "repository": upstream["repository"],
+    "frozen_release_commit": upstream["frozen_release_commit"],
+    "cpu_runtime_blob_sha": upstream["cpu_runtime_blob_sha"],
+    "live_cpu_range_merge_commit": "623c43a13c0696533164826ec71896488c7aed44",
+    "range_protocol": "galaxy.cpu-range.v1",
+    "source_copy_into_mesh": False,
+}:
+    raise SystemExit("GALAXY live range upstream authority drift")
+if galaxy_range["domain"] != {
+    "logical_population": "u64-nonzero",
+    "resident_particles": "1..=16777216-and-no-greater-than-logical-population",
+    "partition_axis": "resident-sample-index",
+    "interval": "nonempty-half-open-start-end-within-resident-population",
+    "global_id_mapping_owner": "GALAXY",
+    "global_id_mapping": "floor(resident_index-times-logical_population-divided-by-full_resident_particles)",
+}:
+    raise SystemExit("GALAXY live range domain drift")
+if galaxy_range["execution"] != {
+    "backend": "GALAXY-owned-CPU-only",
+    "requested_partitions": "2..=256",
+    "complete_gap_free_cover_required": True,
+    "partial_checksum": "wrapping-u64",
+    "full_range_execution_required": True,
+    "partitioned_checksum_must_equal_full_range": True,
+    "archived_oracle_required_for_frozen_geometry": True,
+    "archived_bam_lut_checksum": oracle["bam_lut_checksum"],
+}:
+    raise SystemExit("GALAXY live range execution or oracle drift")
+if galaxy_range["evidence_boundary"] != {
+    "binary_provenance_attested": False,
+    "cuda_executed": False,
+    "requested_gpu_plan_is_evidence": False,
+    "standalone_partition_parity_is_independent_oracle": False,
+    "receipt_schema": "qsol.mesh.galaxy-cpu-parity-receipt.v1",
+    "common_evidence_sections_required": True,
+    "topology_and_memory_observation_status": "not-observed",
+    "calibration_performed": False,
+}:
+    raise SystemExit("GALAXY live range evidence boundary drift")
 
 galaxy_source = (ROOT / "crates/mesh-core/src/galaxy.rs").read_text(encoding="utf-8")
 for token in (

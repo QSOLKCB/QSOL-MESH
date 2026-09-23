@@ -15,6 +15,8 @@ jobs:
       - run: python3 scripts/validate-contracts.py
       - name: Validate retained Phase 1 CUDA-host evidence
         run: python3 scripts/validate-retained-phase1-evidence.py
+      - name: Validate retained GALAXY CPU parity evidence
+        run: python3 scripts/validate-retained-galaxy-cpu-evidence.py
       - name: Validate CUDA build script syntax
         run: bash -n scripts/build-cuda-helper.sh
       - name: Validate JSON syntax independently
@@ -268,3 +270,65 @@ jobs:
           for command in calibrate plan receipt; do
             cargo run -q -p qsol-mesh-cli --locked -- "$command" --json | grep -q '"status":"not-implemented"'
           done
+
+  galaxy-cpu-parity:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check out merged GALAXY CPU range authority
+        uses: actions/checkout@v4
+        with:
+          repository: QSOLKCB/GALAXY
+          ref: 623c43a13c0696533164826ec71896488c7aed44
+          path: galaxy-upstream
+      - name: Install pinned Rust
+        run: |
+          rustup toolchain install 1.85.1 --profile minimal
+          rustup default 1.85.1
+      - name: Build both runtimes
+        run: |
+          mv galaxy-upstream "$RUNNER_TEMP/galaxy-upstream"
+          cargo build --release --locked -p qsol-mesh-cli
+          cargo build --release --locked --manifest-path "$RUNNER_TEMP/galaxy-upstream/cpu-runtime/Cargo.toml" --bin galaxy-cpu
+      - name: Verify bounded and frozen partitioned parity
+        run: |
+          mkdir -p parity-receipts
+          ./target/release/mesh verify galaxy-cpu --binary "$RUNNER_TEMP/galaxy-upstream/cpu-runtime/target/release/galaxy-cpu" --logical 4096 --resident 1024 --frames 2 --seed 303 --partitions 4 --json > parity-receipts/bounded.json
+          ./target/release/mesh verify galaxy-cpu --binary "$RUNNER_TEMP/galaxy-upstream/cpu-runtime/target/release/galaxy-cpu" --partitions 2 --json > parity-receipts/frozen.json
+          python3 - <<'PY'
+          import hashlib
+          import json
+          from pathlib import Path
+
+          bounded = json.loads(Path("parity-receipts/bounded.json").read_text())
+          frozen = json.loads(Path("parity-receipts/frozen.json").read_text())
+          evidence = json.loads(Path("machine/evidence-contract.v1.json").read_text())
+          contract = json.loads(Path("machine/galaxy-range-contract.v2.json").read_text())
+          for receipt, partitions in [(bounded, 4), (frozen, 2)]:
+              assert receipt["schema"] == contract["evidence_boundary"]["receipt_schema"]
+              assert set(evidence["receipt_required_sections"]) <= set(receipt)
+              assert receipt["observed_topology"] == {"status": "not-observed", "source": "external-galaxy-cpu-range-process"}
+              assert receipt["memory_plan"] == {"status": "not-observed", "owner": "galaxy-cpu-runtime", "mesh_materializes_logical_population": False}
+              assert receipt["calibration"] == {"performed": False, "placement_decision_influenced": False}
+              assert receipt["verification"]["partitioned_parity"] is True
+              assert receipt["verification"]["full_checksum"] == receipt["verification"]["partitioned_checksum"]
+              assert receipt["effective_execution"]["partial_count"] == partitions
+          assert frozen["requested_configuration"] == {
+              "logical_population": 18446744073709551615,
+              "resident_particles": 8388608,
+              "frames": 8,
+              "seed": 303,
+              "partitions": 2,
+          }
+          assert frozen["verification"]["full_checksum"] == "8d6f07bd77e2fc16"
+          assert frozen["verification"]["archived_oracle_verified"] is True
+          assert bounded["verification"]["archived_oracle_verified"] is False
+          for path in sorted(Path("parity-receipts").glob("*.json")):
+              print(f"{path}: {hashlib.sha256(path.read_bytes()).hexdigest()}")
+          PY
+      - name: Retain MESH parity receipts
+        uses: actions/upload-artifact@v4
+        with:
+          name: galaxy-cpu-parity
+          path: parity-receipts/*.json
+          if-no-files-found: error
