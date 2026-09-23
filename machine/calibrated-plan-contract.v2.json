@@ -3,6 +3,10 @@
   "contract_version": "2.0.0",
   "plan_identity": "mesh-calibration-smoke-v1",
   "activation": "mesh-calibrate-smoke---cuda",
+  "supersedes_for_opt_in_cuda_calibration": [
+    "calibrated-plan-contract.v1.json:measurement_contract.accelerator_measurements_admitted_by_planner",
+    "nvidia-executor-timing-contract.v2.json:activation.calibrator_may_consume_v2_timings"
+  ],
   "cuda_helper": "canonical-mesh-cuda-smoke",
   "workload_identity": "mesh-smoke-v1",
   "candidate_set": ["canonical-cpu", "topology-derived-cpu", "cuda-only", "static-cpu-cuda"],
