@@ -673,16 +673,19 @@ fn measure_cuda_smoke(
     let service_ns = total_ns
         .checked_sub(setup_ns + transfer_ns)
         .ok_or("CUDA timing components exceed launcher and verification host time")?;
-    Ok((CostObservation {
-        candidate_id: candidate.id,
-        work_units: items,
-        effective_cpu_workers: 0,
-        service_ns,
-        setup_ns,
-        transfer_ns,
-        checksum: sample.3,
-        verified: true,
-    }, identity.ok_or("CUDA calibration identity missing")?))
+    Ok((
+        CostObservation {
+            candidate_id: candidate.id,
+            work_units: items,
+            effective_cpu_workers: 0,
+            service_ns,
+            setup_ns,
+            transfer_ns,
+            checksum: sample.3,
+            verified: true,
+        },
+        identity.ok_or("CUDA calibration identity missing")?,
+    ))
 }
 
 fn measure_static_smoke(
@@ -717,7 +720,9 @@ fn measure_static_smoke(
         };
         if let Some(previous) = &identity {
             if previous != &observed_identity {
-                return Err("static calibration CUDA worker identity changed between repeats".into());
+                return Err(
+                    "static calibration CUDA worker identity changed between repeats".into(),
+                );
             }
         } else {
             identity = Some(observed_identity);
@@ -736,16 +741,19 @@ fn measure_static_smoke(
     }
     samples.sort_unstable_by_key(|sample| sample.0);
     let sample = samples[repeats / 2];
-    Ok((CostObservation {
-        candidate_id: candidate.id,
-        work_units: items,
-        effective_cpu_workers: sample.1,
-        service_ns: sample.0,
-        setup_ns: 0,
-        transfer_ns: 0,
-        checksum: sample.2,
-        verified: true,
-    }, identity.ok_or("static calibration CUDA identity missing")?))
+    Ok((
+        CostObservation {
+            candidate_id: candidate.id,
+            work_units: items,
+            effective_cpu_workers: sample.1,
+            service_ns: sample.0,
+            setup_ns: 0,
+            transfer_ns: 0,
+            checksum: sample.2,
+            verified: true,
+        },
+        identity.ok_or("static calibration CUDA identity missing")?,
+    ))
 }
 
 /// Opt-in CUDA calibration. No accelerator candidate is admitted unless the
@@ -773,13 +781,18 @@ pub fn calibrate_cuda_smoke_host(
     let mut identity = None;
     let mut measure = |candidate: CandidatePlan, items| -> Result<CostObservation, String> {
         let (observation, cuda_identity) = match candidate.backend {
-            BackendKind::Cpu => (measure_cpu_smoke(candidate, items, repeats).map_err(str::to_owned)?, None),
+            BackendKind::Cpu => (
+                measure_cpu_smoke(candidate, items, repeats).map_err(str::to_owned)?,
+                None,
+            ),
             BackendKind::Accelerator => {
-                let (observation, identity) = measure_cuda_smoke(candidate, items, repeats, device)?;
+                let (observation, identity) =
+                    measure_cuda_smoke(candidate, items, repeats, device)?;
                 (observation, Some(identity))
             }
             BackendKind::HeterogeneousStatic => {
-                let (observation, identity) = measure_static_smoke(candidate, items, repeats, device)?;
+                let (observation, identity) =
+                    measure_static_smoke(candidate, items, repeats, device)?;
                 (observation, Some(identity))
             }
         };
@@ -999,8 +1012,11 @@ mod tests {
             plan,
             device: 0,
             identity: ObservedCudaIdentity {
-                device: 0, compute_major: 12, compute_minor: 0,
-                runtime_version: 13020, driver_version: 13020,
+                device: 0,
+                compute_major: 12,
+                compute_minor: 0,
+                runtime_version: 13020,
+                driver_version: 13020,
                 helper_path: PathBuf::new(),
             },
         };
