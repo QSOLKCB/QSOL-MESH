@@ -37,7 +37,9 @@ impl CpuRangeRequest {
 }
 
 fn field<'a>(value: &'a str, prefix: &str) -> Result<&'a str, &'static str> {
-    value.strip_prefix(prefix).ok_or("GALAXY range field mismatch")
+    value
+        .strip_prefix(prefix)
+        .ok_or("GALAXY range field mismatch")
 }
 
 pub fn parse_cpu_range_line(
@@ -84,10 +86,7 @@ pub fn parse_cpu_range_line(
     })
 }
 
-pub fn execute_cpu_range(
-    binary: &Path,
-    request: CpuRangeRequest,
-) -> Result<GalaxyPartial, String> {
+pub fn execute_cpu_range(binary: &Path, request: CpuRangeRequest) -> Result<GalaxyPartial, String> {
     request.validate().map_err(str::to_owned)?;
     let output = Command::new(binary)
         .arg("range")
@@ -110,8 +109,8 @@ pub fn execute_cpu_range(
     if !output.status.success() {
         return Err(format!("GALAXY CPU range exited with {}", output.status));
     }
-    let stdout = std::str::from_utf8(&output.stdout)
-        .map_err(|_| "GALAXY CPU range output is not UTF-8")?;
+    let stdout =
+        std::str::from_utf8(&output.stdout).map_err(|_| "GALAXY CPU range output is not UTF-8")?;
     parse_cpu_range_line(stdout, request).map_err(str::to_owned)
 }
 
@@ -140,7 +139,7 @@ pub fn verify_cpu_parity(
         seed,
     };
     request.validate().map_err(str::to_owned)?;
-    if partitions < 2 || partitions > 256 {
+    if partitions < 2 || partitions > 256 || resident_particles < partitions as u64 {
         return Err("GALAXY CPU parity requires 2..=256 partitions".into());
     }
     let full = execute_cpu_range(binary, request)?;
@@ -191,15 +190,27 @@ mod tests {
     #[test]
     fn strict_protocol_binds_every_requested_dimension() {
         let line = "galaxy.cpu-range.v1\tlogical=18446744073709551615\tresident=257\tstart=0\tend=63\tframes=8\tseed=303\tbackend=bam-lut-q30\tchecksum=0123456789abcdef\n";
-        assert_eq!(parse_cpu_range_line(line, request()).unwrap().checksum, 0x0123_4567_89ab_cdef);
-        assert!(parse_cpu_range_line(&line.replace("resident=257", "resident=256"), request()).is_err());
-        assert!(parse_cpu_range_line(&line.replace("backend=bam-lut-q30", "backend=float-libm"), request()).is_err());
+        assert_eq!(
+            parse_cpu_range_line(line, request()).unwrap().checksum,
+            0x0123_4567_89ab_cdef
+        );
+        assert!(
+            parse_cpu_range_line(&line.replace("resident=257", "resident=256"), request()).is_err()
+        );
+        assert!(parse_cpu_range_line(
+            &line.replace("backend=bam-lut-q30", "backend=float-libm"),
+            request()
+        )
+        .is_err());
         assert!(parse_cpu_range_line(&format!("{line}{line}"), request()).is_err());
     }
 
     #[test]
     fn invalid_range_fails_before_worker_dispatch() {
-        let bad = CpuRangeRequest { end: 258, ..request() };
+        let bad = CpuRangeRequest {
+            end: 258,
+            ..request()
+        };
         assert!(bad.validate().is_err());
         assert!(execute_cpu_range(Path::new("/does-not-exist"), bad).is_err());
     }
