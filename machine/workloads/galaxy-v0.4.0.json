@@ -46,7 +46,8 @@
       "bam_lut_checksum": "8d6f07bd77e2fc16",
       "float_checksum": "adf6d6e30d3ad26d"
     },
-    "live_partitioned_oracle_status": "pending-galaxy-owned-range-entrypoint"
+    "live_partitioned_oracle_status": "admitted-galaxy-owned-cpu-range-v1",
+    "live_cpu_range_contract": "machine/galaxy-range-contract.v2.json"
   },
   "exactness_contract": {
     "kind": "bit-exact-u64-reduction-and-oracle",
@@ -64,8 +65,9 @@
     "requested_plan_kinds": ["cpu-only", "accelerator-only", "heterogeneous-static"],
     "requested_plan_is_execution_evidence": false,
     "cpu_only_archived_evidence_available": true,
+    "cpu_only_live_evidence_available": true,
     "accelerator_execution_evidence_status": "pending-real-accelerator-executor",
     "heterogeneous_execution_evidence_status": "pending-real-accelerator-executor"
   },
-  "claim_boundary": "Phase-2 adapter geometry, compact reduction, and archived-oracle binding only. MESH does not copy GALAXY particle/address/physics/projection semantics. Requested accelerator plans are not evidence that an accelerator executed."
+  "claim_boundary": "Phase-2 adapter geometry, compact reduction, archived-oracle binding, and retained GALAXY-owned CPU range parity only. MESH does not copy GALAXY particle/address/physics/projection semantics. Requested accelerator plans are not evidence that an accelerator executed."
 }

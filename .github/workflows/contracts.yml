@@ -302,8 +302,14 @@ jobs:
 
           bounded = json.loads(Path("parity-receipts/bounded.json").read_text())
           frozen = json.loads(Path("parity-receipts/frozen.json").read_text())
+          evidence = json.loads(Path("machine/evidence-contract.v1.json").read_text())
+          contract = json.loads(Path("machine/galaxy-range-contract.v2.json").read_text())
           for receipt, partitions in [(bounded, 4), (frozen, 2)]:
-              assert receipt["schema"] == "qsol.mesh.galaxy-cpu-parity-receipt.v1"
+              assert receipt["schema"] == contract["evidence_boundary"]["receipt_schema"]
+              assert set(evidence["receipt_required_sections"]) <= set(receipt)
+              assert receipt["observed_topology"] == {"status": "not-observed", "source": "external-galaxy-cpu-range-process"}
+              assert receipt["memory_plan"] == {"status": "not-observed", "owner": "galaxy-cpu-runtime", "mesh_materializes_logical_population": False}
+              assert receipt["calibration"] == {"performed": False, "placement_decision_influenced": False}
               assert receipt["verification"]["partitioned_parity"] is True
               assert receipt["verification"]["full_checksum"] == receipt["verification"]["partitioned_checksum"]
               assert receipt["effective_execution"]["partial_count"] == partitions

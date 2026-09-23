@@ -6,6 +6,7 @@
     "repository": "QSOLKCB/GALAXY",
     "frozen_release_commit": "6f17a734b9241359d36a9bf3d208b8527a456327",
     "cpu_runtime_blob_sha": "b12220565f6059482f706d46db1d9d2c29a9cc82",
+    "live_cpu_range_merge_commit": "623c43a13c0696533164826ec71896488c7aed44",
     "range_protocol": "galaxy.cpu-range.v1",
     "source_copy_into_mesh": false
   },
@@ -31,6 +32,10 @@
     "binary_provenance_attested": false,
     "cuda_executed": false,
     "requested_gpu_plan_is_evidence": false,
-    "standalone_partition_parity_is_independent_oracle": false
+    "standalone_partition_parity_is_independent_oracle": false,
+    "receipt_schema": "qsol.mesh.galaxy-cpu-parity-receipt.v1",
+    "common_evidence_sections_required": true,
+    "topology_and_memory_observation_status": "not-observed",
+    "calibration_performed": false
   }
 }
