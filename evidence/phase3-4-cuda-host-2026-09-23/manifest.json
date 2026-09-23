@@ -1,0 +1,22 @@
+{
+  "schema": "qsol.mesh.retained-cuda-evidence.v1",
+  "source_commit": "69280c4c5d7553cf0fa17f8ddaae34f07dcceddb",
+  "original_archive_sha256": "328800b9704973a3c1ea6c6a1a5f5d11064108f7b81a72622cce8c470916d4f1",
+  "files": {
+    "capture-1/phase3-cuda-evidence/SHA256SUMS": "fef065ce2d8e61d94814725cf3c46bcceab8eb55ed1f3ed5fb5d96a23a32b573",
+    "capture-1/phase3-cuda-evidence/environment.txt": "1a88bb9db3876deb7b186b1d553b2c262f5c01068ae03842e27a40fbacd44037",
+    "capture-1/phase3-cuda-evidence/multi-chunk.json": "27140f226eca7ad90d744ac8a52d9facf2dffae8b1914e9e3bf817c960eaaa8a",
+    "capture-1/phase3-cuda-evidence/one-chunk.json": "030e7f92535762d5ce91c689bda907b7360b2f30d5b2aac5c5f5e567cb0b4b53",
+    "capture-1/phase3-run.log": "d4d1b86dd783927bdbf1ea43c554d6a0ce5faa47069236fa27b0060de3e59fee",
+    "capture-1/phase4-cuda-evidence/SHA256SUMS": "40e2f7185b1a580221341ed8e2bad2e1b92407a749fcb804efe5d52c13493be0",
+    "capture-1/phase4-cuda-evidence/calibration.json": "2eda2a52775353cb71d42a1da4cf98db985dcf81cb65931ad2ab4e1abe519b59",
+    "capture-1/phase4-cuda-evidence/environment.txt": "612ab1f41dba12b57816e3b1e1517590bd3408a6da481c5eac2c67c7db2c9221",
+    "capture-1/phase4-cuda-evidence/timing.json": "452577613d311e858a4a22367100cbab5c1b4db6df4459a54fb248061a458ead",
+    "capture-1/phase4-run.log": "4801abd37b0d1ceb903a05ca066b28f92a50933ab938342c3ae2f1bb25a37e50",
+    "capture-1/validation.log": "968ccdccd44eb6fd85ed78af53939a1ea4f14b06394867740a8f834378570084",
+    "capture-2/SHA256SUMS": "90cdae31e96f982f078c6e69f57c0b5df6a2d506e249cc64eb5e2c7889dfc646",
+    "capture-2/calibration.json": "0ba3db9bf750becc93a9d456eaa1e80b57b18af620d31514add5500056ce045b",
+    "capture-2/environment.txt": "36b8207bfd7bd25e1e34533547b28b453d770b6fc0907928eac250c6ce5e6c94",
+    "capture-2/timing.json": "e02bbe5728a982b79325f8d371bab4d9c54d1a72fd7478d6fb45007c27038912"
+  }
+}

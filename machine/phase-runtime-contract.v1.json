@@ -1,0 +1,54 @@
+{
+  "schema": "qsol.mesh.phase-runtime-contract.v1",
+  "contract_version": "1.0.0",
+  "activation": [
+    "mesh-run-smoke-phases",
+    "mesh-verify-smoke-phases"
+  ],
+  "workload_identity": "mesh-smoke-phases-v1",
+  "request_bounds": {
+    "phase_count": "1..=64",
+    "repeats": "1..=31",
+    "near_tie_bps": "0..=9999",
+    "minimum_cpu_phase_items": 1,
+    "minimum_cuda_phase_items": 2,
+    "total_phase_items": "checked-u64-sum",
+    "calibration_items_per_phase": "min(requested_calibration_items,phase_items)"
+  },
+  "planning": {
+    "boundary": "before-each-phase-after-previous-phase-verified",
+    "candidate_budget_per_phase": 4,
+    "cpu_contract": "machine/calibrated-plan-contract.v1.json",
+    "cuda_contract": "machine/calibrated-plan-contract.v2.json",
+    "fresh_measurements_every_phase": true,
+    "full_work_confirmation_before_noncanonical_selection": true,
+    "canonical_on_near_ties": true,
+    "calibration_cache": false
+  },
+  "execution": {
+    "selected_plan_executed_after_confirmation": true,
+    "within_phase_replanning": false,
+    "dynamic_work_stealing": false,
+    "cuda_identity_stable_across_phases_and_execution": true,
+    "failure_fallback": false,
+    "partial_success_receipt": false,
+    "phase_order_reduction": "wrapping-u64",
+    "separate_execution_scalar_oracle_required": true
+  },
+  "receipt": {
+    "schema": "qsol.mesh.phase-runtime-receipt.v1",
+    "common_evidence_sections_required": true,
+    "per_phase_calibration_receipts_required": true,
+    "requested_and_effective_workers_required": true,
+    "phase_geometry_required": true,
+    "plan_change_count_required": true,
+    "private_execution_provenance_required": true
+  },
+  "evidence_boundary": {
+    "cuda_host_evidence_status": "pending-phase5-specific-capture",
+    "phase3_4_evidence_implies_phase5_execution": false,
+    "persistent_cuda_context": false,
+    "kernel_overlap_measured": false,
+    "universal_speedup": false
+  }
+}

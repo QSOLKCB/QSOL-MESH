@@ -98,8 +98,8 @@ The v1 planning receipt does **not** claim these physical capabilities:
 - measured transfer completion/events;
 - observed reuse across real accelerator submissions.
 
-The separate CUDA executor below owns the resources; it needs retained host
-execution evidence before the roadmap's physical gates can close.
+The separate CUDA executor below owns the resources. Its retained host
+execution receipts now close the roadmap's Phase 3 physical gates.
 
 ## Experimental physical CUDA stream rung
 
@@ -138,3 +138,8 @@ executable and version used to build the helper.
 The roadmap's physical execution evidence boxes remain open until those
 receipts are captured and independently checked on a CUDA-capable host. The
 versioned physical contract is `machine/cuda-stream-contract.v1.json`.
+
+Retained single-chunk and 25-chunk physical CUDA captures are now available in
+`evidence/phase3-4-cuda-host-2026-09-23/` and checked by
+`scripts/validate-retained-phase3-4-evidence.py`. These cover allocation and
+reuse within one stream-worker run, not a cross-process persistent CUDA pool.

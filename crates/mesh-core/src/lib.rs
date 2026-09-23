@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 pub mod accelerator;
+pub mod adaptive;
 pub mod concurrent_split;
 pub mod galaxy;
 pub mod galaxy_runtime;

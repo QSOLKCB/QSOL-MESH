@@ -1,0 +1,4 @@
+   Compiling qsol-mesh-core v0.1.0 (/home/trent/qsol-mesh-cuda.5ZPk9H/source/crates/mesh-core)
+   Compiling qsol-mesh-cli v0.1.0 (/home/trent/qsol-mesh-cuda.5ZPk9H/source/crates/mesh-cli)
+    Finished `release` profile [optimized] target(s) in 1.19s
+capture-phase3: verified receipts and hashes saved to /home/trent/qsol-mesh-cuda.5ZPk9H/phase3-cuda-evidence

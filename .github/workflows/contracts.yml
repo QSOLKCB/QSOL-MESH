@@ -17,8 +17,12 @@ jobs:
         run: python3 scripts/validate-retained-phase1-evidence.py
       - name: Validate retained GALAXY CPU parity evidence
         run: python3 scripts/validate-retained-galaxy-cpu-evidence.py
+      - name: Validate retained Phase 3 and 4 CUDA captures
+        run: python3 scripts/validate-retained-phase3-4-evidence.py
+      - name: Test retained capture integrity
+        run: python3 scripts/test-retained-phase3-4-evidence.py
       - name: Validate CUDA build script syntax
-        run: bash -n scripts/capture-phase4-cuda-calibration.sh scripts/build-cuda-helper.sh scripts/build-cuda-stream-helper.sh scripts/capture-phase3-cuda-stream.sh
+        run: bash -n scripts/capture-phase5-adaptive.sh scripts/capture-phase4-cuda-calibration.sh scripts/build-cuda-helper.sh scripts/build-cuda-stream-helper.sh scripts/capture-phase3-cuda-stream.sh
       - name: Verify selected CUDA compiler provenance
         run: python3 scripts/test-phase3-compiler-capture.py
       - name: Validate JSON syntax independently
@@ -56,6 +60,7 @@ jobs:
         run: |
           cargo build --locked -p qsol-mesh-cli
           python3 scripts/test-phase4-calibration.py target/debug/mesh
+          python3 scripts/test-phase5-adaptive.py target/debug/mesh
       - name: CLI smoke
         run: |
           cargo run -q -p qsol-mesh-cli --locked -- inspect --json | grep -q '"available_parallelism":'
