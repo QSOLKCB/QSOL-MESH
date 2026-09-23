@@ -104,3 +104,9 @@ before promotion. An absent or failing helper rejects the opt-in run. The v1
 CPU-only CLI and receipt remain available without `--cuda`. The v2 receipt is
 host-specific selection evidence, not a claim of kernel overlap, independent
 hardware attestation, or persistent memory reuse.
+
+On a CUDA-capable Ubuntu host, `bash scripts/capture-phase4-cuda-calibration.sh
+phase4-cuda-evidence` builds the canonical helper and release CLI, executes a
+timing-v2 verification and the v2 calibrator, and saves both verified JSON
+receipts with environment details and SHA-256 hashes. Supply a new output
+directory; the script refuses to overwrite existing evidence.
