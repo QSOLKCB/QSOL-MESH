@@ -120,7 +120,7 @@ The synchronous D2H copy targets a pageable host `u64`, so its duration is inten
 
 The v2 parser is exact-shape and fail-closed. Missing, duplicated/misordered, negative, overflowed, or internally inconsistent timing values cannot mint a verified timing receipt. Receipt serialization recomputes the scalar oracle, revalidates timing consistency, and revalidates the canonical worker path.
 
-See `machine/nvidia-executor-timing-contract.v2.json`.
+See `machine/nvidia-executor-timing-contract.v2.json`. The opt-in `mesh calibrate smoke --cuda` command consumes these timings under `machine/calibrated-plan-contract.v2.json`; see `CALIBRATED-PLANNING.md` for cost scopes and full-work confirmation.
 
 ## Not implemented in this slice
 
@@ -131,7 +131,6 @@ This executor deliberately does not yet claim:
 - persistent accelerator pools;
 - pinned-host staging;
 - GALAXY GPU execution;
-- admission of accelerator timing evidence into calibrated placement;
 - multi-GPU execution.
 
 Those are subsequent rungs after the single-device executor boundary is stable.

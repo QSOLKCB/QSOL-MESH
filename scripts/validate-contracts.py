@@ -12,6 +12,7 @@ EXPECTED = {
     "memory-plan-contract.v1.json":"qsol.mesh.memory-plan-contract.v1",
     "cuda-stream-contract.v1.json":"qsol.mesh.cuda-stream-contract.v1",
     "calibrated-plan-contract.v1.json":"qsol.mesh.calibrated-plan-contract.v1",
+    "calibrated-plan-contract.v2.json":"qsol.mesh.calibrated-plan-contract.v2",
     "galaxy-range-contract.v2.json":"qsol.mesh.galaxy-range-adapter.v2",
     "nvidia-executor-contract.v1.json":"qsol.mesh.nvidia-executor-contract.v1",
     "nvidia-executor-timing-contract.v2.json":"qsol.mesh.nvidia-executor-timing-contract.v2",
@@ -296,7 +297,7 @@ if calibrated["measurement_contract"]["cpu_smoke_nonzero_setup_or_transfer_is_ad
     raise SystemExit("CPU smoke cost-field boundary drift")
 if (
     calibrated["measurement_contract"]["accelerator_measurement_status"]
-    != "available-via-qsol.mesh.cuda-smoke-receipt.v2-not-yet-admitted"
+    != "admitted-only-by-calibrated-plan-contract.v2"
 ):
     raise SystemExit("accelerator measurement availability boundary drift")
 if (
@@ -336,6 +337,46 @@ for key in (
 ):
     if calibrated["receipt_contract"].get(key) is not True:
         raise SystemExit(f"calibrated receipt contract weakened: {key}")
+
+cuda_calibrated = loaded["calibrated-plan-contract.v2.json"]
+if calibrated.get("activation") != "mesh-calibrate-smoke-without---cuda" or calibrated["measurement_contract"].get("opt_in_cuda_contract") != "machine/calibrated-plan-contract.v2.json":
+    raise SystemExit("CPU-only default and opt-in CUDA calibration authority drift")
+expected_cuda_calibrated = {'schema': 'qsol.mesh.calibrated-plan-contract.v2',
+ 'contract_version': '2.0.0',
+ 'plan_identity': 'mesh-calibration-smoke-v1',
+ 'activation': 'mesh-calibrate-smoke---cuda',
+ 'cuda_helper': 'canonical-mesh-cuda-smoke',
+ 'workload_identity': 'mesh-smoke-v1',
+ 'candidate_set': ['canonical-cpu', 'topology-derived-cpu', 'cuda-only', 'static-cpu-cuda'],
+ 'measurement': {'repeats': 'positive',
+                 'cuda_protocol': 'qsol.mesh.cuda-smoke-worker.v2',
+                 'cuda_sample_policy': 'median-launcher-plus-scalar-verification-host-time-sample-with-components-from-same-repeat',
+                 'cuda_service_ns': 'launcher_total_ns-plus-verification_ns-minus-nested-setup_host_ns-minus-nested-transfer_host_ns',
+                 'cuda_setup_ns': 'setup_host_ns',
+                 'cuda_transfer_ns': 'transfer_host_ns',
+                 'cuda_total_ns': 'launcher_total_ns-plus-verification_ns',
+                 'cuda_kernel_event_ns_added_to_total': False,
+                 'cpu_service_ns': 'run_smoke-end-to-end',
+                 'heterogeneous_service_ns': 'run_static_smoke_partition-end-to-end',
+                 'heterogeneous_setup_transfer_separately_isolated': False,
+                 'worker_topology_is_independently_attested': False,
+                 'cuda_identity_stable_across_all_samples_and_candidates': True,
+                 'cuda_timing_contract': 'machine/nvidia-executor-timing-contract.v2.json'},
+ 'selection': {'canonical_checksum_is_independent_scalar_oracle': True,
+               'all_candidates_measured': True,
+               'near_tie_and_full_work_confirmation': True,
+               'adaptive_work_stealing': False},
+ 'receipt_schema': 'qsol.mesh.calibrated-plan-receipt.v2',
+ 'base_planning_contract': 'machine/calibrated-plan-contract.v1.json',
+ 'request_domain': {'calibration_items': '2..=u64::MAX',
+                    'full_work_items': 'calibration_items..=u64::MAX',
+                    'repeats': 'positive-usize',
+                    'near_tie_bps': '0..=9999',
+                    'device': 'u32'},
+ 'receipt_requires_common_evidence_sections': True,
+ 'cuda_host_evidence_status': 'pending-retained-physical-calibration-receipt'}
+if {key: value for key, value in cuda_calibrated.items() if key != "claim_boundary"} != expected_cuda_calibrated:
+    raise SystemExit("CUDA calibrated planning admission, measurement, or evidence boundary drift")
 
 planner_source = (ROOT / "crates/mesh-core/src/planner.rs").read_text(encoding="utf-8")
 for token in (
@@ -450,7 +491,8 @@ if timing["activation"] != {
     "default_smoke_cuda_receipt_remains_v1": True,
     "range_timing_supported": False,
     "placement_behavior_may_change": False,
-    "calibrator_may_consume_v2_timings": False,
+    "calibrator_may_consume_v2_timings": True,
+    "calibrator_admission_contract": "machine/calibrated-plan-contract.v2.json",
 }:
     raise SystemExit("CUDA timing activation/compatibility boundary drift")
 
@@ -748,6 +790,7 @@ agents = (ROOT / "AGENTS.md").read_text(encoding="utf-8")
 for contract_name in (
     "machine/memory-plan-contract.v1.json",
     "machine/calibrated-plan-contract.v1.json",
+    "machine/calibrated-plan-contract.v2.json",
     "machine/nvidia-executor-contract.v1.json",
     "machine/nvidia-executor-timing-contract.v2.json",
     "machine/static-split-contract.v1.json",

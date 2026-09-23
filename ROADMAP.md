@@ -60,7 +60,8 @@
   - [x] Real host CPU smoke service measurements with explicit cost scope.
   - [x] Versioned setup/service/transfer cost evidence fields.
   - [x] Optional CUDA timing receipt v2 separates helper latency, setup, kernel service, D2H transfer, teardown, and scalar verification with explicit clock scopes.
-  - [ ] CUDA executor timing/setup/transfer measurement has not yet been integrated into the calibrator.
+  - [x] Opt-in CUDA calibrator consumes verified timing v2 samples and compares CPU-only, CUDA-only, and static heterogeneous candidates with full-work confirmation.
+  - [ ] Retained CUDA-host calibration receipt with measured setup/service/transfer costs and full-work selection evidence.
 - [x] Topology-derived bounded candidate plans.
 - [x] Deterministic search and full-work confirmation.
 - [x] Keep canonical on near ties.

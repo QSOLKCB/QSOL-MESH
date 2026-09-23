@@ -16,7 +16,8 @@
     "default_smoke_cuda_receipt_remains_v1": true,
     "range_timing_supported": false,
     "placement_behavior_may_change": false,
-    "calibrator_may_consume_v2_timings": false
+    "calibrator_may_consume_v2_timings": true,
+    "calibrator_admission_contract": "machine/calibrated-plan-contract.v2.json"
   },
   "timing_fields": {
     "launcher_total_ns": {
@@ -85,5 +86,5 @@
     "ci_may_validate_v2_protocol_parser_and_contract": true,
     "ci_may_claim_cuda_timing_execution_without_cuda_capable_runner": false
   },
-  "claim_boundary": "Optional separated CUDA timing evidence for mesh-smoke-v1 only. Host and device clocks are reported with explicit scopes and are not collapsed into a cross-clock additive total. The measurements do not change placement, do not establish kernel-level CPU/GPU overlap, and are not performance or calibrated-planning evidence until admitted by a later contract."
+  "claim_boundary": "Optional separated CUDA timing evidence for mesh-smoke-v1 only. Host and device clocks retain explicit scopes; CUDA event time is not added to host costs. The timing command does not change placement or establish kernel overlap. Opt-in calibrated selection consumes these measurements under calibrated-plan-contract.v2.json; a timing receipt alone is not selection evidence."
 }
