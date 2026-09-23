@@ -139,7 +139,7 @@ pub fn verify_cpu_parity(
         seed,
     };
     request.validate().map_err(str::to_owned)?;
-    if partitions < 2 || partitions > 256 || resident_particles < partitions as u64 {
+    if !(2..=256).contains(&partitions) || resident_particles < partitions as u64 {
         return Err("GALAXY CPU parity requires 2..=256 partitions".into());
     }
     let full = execute_cpu_range(binary, request)?;
