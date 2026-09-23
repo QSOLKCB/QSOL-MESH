@@ -44,5 +44,5 @@
     "device": "u32"
   },
   "receipt_requires_common_evidence_sections": true,
-  "cuda_host_evidence_status": "pending-retained-physical-calibration-receipt"
+  "cuda_host_evidence_status": "retained-two-captures-at-69280c4"
 }

@@ -5,7 +5,7 @@
 //! measured cost evidence only. Hardware names are never performance authority.
 
 use crate::{
-    accelerator::run_cuda_smoke_timed,
+    accelerator::{run_cuda_smoke_timed, CudaRangeWorkerObservation, CudaWorkerObservation},
     run_smoke, smoke_reference,
     static_split::{run_static_smoke_partition, StaticSplitRequest},
     SMOKE_WORKLOAD_ID,
@@ -135,6 +135,41 @@ struct ObservedCudaIdentity {
 }
 
 impl CudaCalibratedRun {
+    pub(crate) fn same_identity(&self, other: &Self) -> bool {
+        self.identity == other.identity
+    }
+
+    pub(crate) fn accepts_execution_identity(
+        &self,
+        observed: CudaWorkerObservation,
+        helper_path: &std::path::Path,
+    ) -> bool {
+        self.identity
+            == ObservedCudaIdentity {
+                device: observed.device_ordinal,
+                compute_major: observed.compute_major,
+                compute_minor: observed.compute_minor,
+                runtime_version: observed.cuda_runtime_version,
+                driver_version: observed.cuda_driver_version,
+                helper_path: helper_path.to_path_buf(),
+            }
+    }
+    pub(crate) fn accepts_range_execution_identity(
+        &self,
+        observed: CudaRangeWorkerObservation,
+        helper_path: &std::path::Path,
+    ) -> bool {
+        self.identity
+            == ObservedCudaIdentity {
+                device: observed.device_ordinal,
+                compute_major: observed.compute_major,
+                compute_minor: observed.compute_minor,
+                runtime_version: observed.cuda_runtime_version,
+                driver_version: observed.cuda_driver_version,
+                helper_path: helper_path.to_path_buf(),
+            }
+    }
+
     pub fn plan(&self) -> &CalibratedPlan {
         &self.plan
     }
@@ -1030,6 +1065,62 @@ mod tests {
             cuda_calibrated_plan_receipt_json(&forged),
             Err("CUDA calibration receipt requires measured accelerator candidates")
         );
+    }
+
+    #[test]
+    fn calibration_identity_binds_selected_execution_and_phase_continuity() {
+        let plan = calibrate_cpu_smoke_host(1, 2, 2, 1, 500).unwrap();
+        let identity = ObservedCudaIdentity {
+            device: 0,
+            compute_major: 12,
+            compute_minor: 0,
+            runtime_version: 12040,
+            driver_version: 13020,
+            helper_path: PathBuf::from("/test/target/mesh-cuda-smoke"),
+        };
+        let first = CudaCalibratedRun {
+            plan: plan.clone(),
+            device: 0,
+            identity: identity.clone(),
+        };
+        let mut second = CudaCalibratedRun {
+            plan,
+            device: 0,
+            identity: identity.clone(),
+        };
+        assert!(first.same_identity(&second));
+        second.identity.driver_version += 1;
+        assert!(!first.same_identity(&second));
+        let observed = CudaWorkerObservation {
+            items: 2,
+            checksum: 0,
+            blocks: 1,
+            threads_per_block: 256,
+            device_ordinal: 0,
+            compute_major: 12,
+            compute_minor: 0,
+            cuda_runtime_version: 12040,
+            cuda_driver_version: 13020,
+        };
+        assert!(first.accepts_execution_identity(observed, &identity.helper_path));
+        assert!(!second.accepts_execution_identity(observed, &identity.helper_path));
+        assert!(
+            !first.accepts_execution_identity(observed, std::path::Path::new("/different/helper"))
+        );
+        let range = CudaRangeWorkerObservation {
+            start: 1,
+            items: 1,
+            checksum: 0,
+            blocks: 1,
+            threads_per_block: 256,
+            device_ordinal: 0,
+            compute_major: 12,
+            compute_minor: 0,
+            cuda_runtime_version: 12040,
+            cuda_driver_version: 13020,
+        };
+        assert!(first.accepts_range_execution_identity(range, &identity.helper_path));
+        assert!(!second.accepts_range_execution_identity(range, &identity.helper_path));
     }
 
     fn cpu_candidates() -> Vec<CandidatePlan> {

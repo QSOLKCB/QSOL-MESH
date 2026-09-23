@@ -59,7 +59,7 @@ The receipt is `qsol.mesh.calibrated-plan-receipt.v1` and records the observed t
 
 ## Accelerator boundary
 
-Accelerator and heterogeneous candidates are admitted by the opt-in v2 contract only after the canonical CUDA helper reports an accelerator and supplies verified measurements. The default v1 calibration remains CPU-only. Retained physical CUDA calibration evidence is still pending; protocol fixtures are not hardware evidence.
+Accelerator and heterogeneous candidates are admitted by the opt-in v2 contract only after the canonical CUDA helper reports an accelerator and supplies verified measurements. The default v1 calibration remains CPU-only. Two physical CUDA calibration captures are retained in `evidence/phase3-4-cuda-host-2026-09-23/`; both kept the canonical CPU plan. Protocol fixtures are not hardware evidence.
 
 
 ## Receipt integrity hardening
@@ -109,3 +109,7 @@ phase4-cuda-evidence` builds the canonical helper and release CLI, executes a
 timing-v2 verification and the v2 calibrator, and saves both verified JSON
 receipts with environment details and SHA-256 hashes. Supply a new output
 directory; the script refuses to overwrite existing evidence.
+
+## Phase-boundary execution
+
+`mesh verify smoke-phases` uses these measured plans before every declared phase, then executes and verifies the selected plan. See `PHASE-RUNTIME.md`.

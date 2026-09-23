@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
+mod phases;
+
 use qsol_mesh_core::{
     accelerator::{
         cuda_smoke_receipt_json, cuda_smoke_timing_receipt_json, run_cuda_smoke,
@@ -24,7 +26,7 @@ use qsol_mesh_core::{
 use std::{env, path::PathBuf, process::ExitCode};
 
 fn usage() -> &'static str {
-    "Usage:\n  mesh inspect [--json]\n  mesh run smoke [--items N] [--workers N] [--json]\n  mesh verify smoke [--items N] [--workers N] [--json]\n  mesh run smoke-cuda [--items N] [--device N] [--timing] [--json]\n  mesh verify smoke-cuda [--items N] [--device N] [--timing] [--json]\n  mesh verify smoke-stream [--items N] [--chunk-items N] [--pinned-limit-bytes N] [--accelerator-limit-bytes N] [--device N] [--json]\n  mesh run smoke-static --cpu-items N [--items N] [--cpu-workers N] [--device N] [--json]\n  mesh verify smoke-static --cpu-items N [--items N] [--cpu-workers N] [--device N] [--json]\n  mesh run smoke-concurrent --cpu-items N [--items N] [--cpu-workers N] [--device N] [--json]\n  mesh verify smoke-concurrent --cpu-items N [--items N] [--cpu-workers N] [--device N] [--json]\n  mesh verify galaxy-cpu --binary PATH [--logical U64] [--resident N] [--frames N] [--seed N] [--partitions N] [--json]\n  mesh calibrate smoke [--calibration-items N] [--full-items N] [--repeats N] [--near-tie-bps N] [--cuda] [--device N] [--json]\n  mesh plan memory [--total-bytes N] [--chunk-bytes N] [--pinned-limit-bytes N] [--accelerator-limit-bytes N] [--partial-bytes N] [--json]\n  mesh <calibrate|plan|receipt> [--json]\n"
+    "Usage:\n  mesh inspect [--json]\n  mesh <run|verify> smoke-phases --phase-items N,N,... [--calibration-items N] [--repeats N] [--near-tie-bps N] [--cuda] [--device N] [--json]\n  mesh run smoke [--items N] [--workers N] [--json]\n  mesh verify smoke [--items N] [--workers N] [--json]\n  mesh run smoke-cuda [--items N] [--device N] [--timing] [--json]\n  mesh verify smoke-cuda [--items N] [--device N] [--timing] [--json]\n  mesh verify smoke-stream [--items N] [--chunk-items N] [--pinned-limit-bytes N] [--accelerator-limit-bytes N] [--device N] [--json]\n  mesh run smoke-static --cpu-items N [--items N] [--cpu-workers N] [--device N] [--json]\n  mesh verify smoke-static --cpu-items N [--items N] [--cpu-workers N] [--device N] [--json]\n  mesh run smoke-concurrent --cpu-items N [--items N] [--cpu-workers N] [--device N] [--json]\n  mesh verify smoke-concurrent --cpu-items N [--items N] [--cpu-workers N] [--device N] [--json]\n  mesh verify galaxy-cpu --binary PATH [--logical U64] [--resident N] [--frames N] [--seed N] [--partitions N] [--json]\n  mesh calibrate smoke [--calibration-items N] [--full-items N] [--repeats N] [--near-tie-bps N] [--cuda] [--device N] [--json]\n  mesh plan memory [--total-bytes N] [--chunk-bytes N] [--pinned-limit-bytes N] [--accelerator-limit-bytes N] [--partial-bytes N] [--json]\n  mesh <calibrate|plan|receipt> [--json]\n"
 }
 
 fn print_smoke_stream(command: Command, args: &[String]) -> Result<(), String> {
@@ -780,6 +782,11 @@ fn main() -> ExitCode {
     };
 
     let result = match command {
+        Command::Run | Command::Verify
+            if args.get(1).map(String::as_str) == Some("smoke-phases") =>
+        {
+            phases::print(command, &args[2..])
+        }
         Command::Inspect => {
             if args[1..].iter().any(|arg| arg != "--json") {
                 Err("mesh inspect only accepts --json".into())

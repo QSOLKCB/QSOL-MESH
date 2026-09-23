@@ -143,6 +143,20 @@ Default calibrated planning remains CPU-only. On a CUDA host, opt in to measured
 mesh calibrate smoke --cuda --device 0 --calibration-items 10000 --full-items 100000 --repeats 3 --json
 ```
 
-The v2 calibrator consumes verified timing measurements, uses setup and transfer costs from the same median host-time sample, and confirms a noncanonical winner on full work. CUDA event time is not added to host costs. Retained physical CUDA calibration evidence remains pending. Run `bash scripts/capture-phase4-cuda-calibration.sh phase4-cuda-evidence` on a CUDA host to capture timing and calibration receipts with compiler metadata and hashes.
+The v2 calibrator consumes verified timing measurements, uses setup and transfer costs from the same median host-time sample, and confirms a noncanonical winner on full work. CUDA event time is not added to host costs. Two physical CUDA calibration captures are retained under `evidence/phase3-4-cuda-host-2026-09-23/`, along with physical streaming receipts; both calibrations selected the canonical CPU plan. Run `bash scripts/capture-phase4-cuda-calibration.sh phase4-cuda-evidence` on a CUDA host to capture timing and calibration receipts with compiler metadata and hashes.
 
 See `CALIBRATED-PLANNING.md` and `machine/calibrated-plan-contract.v2.json` (opt-in CUDA) or `machine/calibrated-plan-contract.v1.json` (default CPU).
+
+
+## Phase 5 bounded phase-boundary runtime
+
+`mesh verify smoke-phases --phase-items 1000,100000,10000 --repeats 3 --json`
+remeasures, selects, executes, and scalar-verifies a plan at each declared phase
+boundary. Add `--cuda --device 0` to admit measured CUDA and static heterogeneous
+candidates. Every phase restarts smoke IDs at zero; results reduce in phase order.
+
+The runtime admits at most 64 phases and 31 repeats, keeps canonical on near
+ties, and fails on execution or CUDA identity mismatch. Receipts embed per-phase
+calibration evidence and actual execution results. Existing Phase 3/4 captures
+do not claim Phase 5 hardware execution; its local capture script is
+`scripts/capture-phase5-adaptive.sh`. See `PHASE-RUNTIME.md`.

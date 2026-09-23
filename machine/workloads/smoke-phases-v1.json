@@ -1,0 +1,38 @@
+{
+  "workload_id": "mesh-smoke-phases-v1",
+  "workload_contract_version": "1.0.0",
+  "logical_domain": {
+    "kind": "ordered-list-of-independent-mesh-smoke-v1-instances",
+    "phase_count": "1..=64",
+    "phase_item_ids": "[0,phase_items)-restarted-for-each-phase",
+    "total_items": "checked-u64-sum"
+  },
+  "partition_contract": {
+    "between_phases": "sequential-phase-index-order",
+    "within_phase": "mesh-smoke-v1-contiguous-complete-cover"
+  },
+  "partial_result_contract": {
+    "kind": "one-wrapping-u64-checksum-per-phase"
+  },
+  "reduction_contract": {
+    "kind": "phase-index-order-wrapping-u64",
+    "calibration_results_are_workload_output": false
+  },
+  "verification_contract": {
+    "kind": "independent-scalar-reference-for-each-phase-and-ordered-sum",
+    "fail_closed": true
+  },
+  "exactness_contract": {
+    "kind": "bit-exact-u64"
+  },
+  "memory_contract": {
+    "per_item_materialization": false,
+    "temporary_state": "O(max_workers + bounded_phase_receipts)",
+    "maximum_retained_phases": 64,
+    "cuda_buffers": "existing-executor-owned-per-call-lifetimes"
+  },
+  "side_effect_contract": {
+    "kind": "none"
+  },
+  "claim_boundary": "synthetic-phase-sequence-only-not-GALAXY-or-universal-performance"
+}

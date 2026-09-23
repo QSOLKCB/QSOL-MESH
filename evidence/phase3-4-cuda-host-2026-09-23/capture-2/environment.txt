@@ -1,0 +1,12 @@
+source_commit=69280c4c5d7553cf0fa17f8ddaae34f07dcceddb
+source_branch=main
+captured_utc=2026-09-23T22:11:14Z
+Linux ubuntu 7.0.0-31-generic #31-Ubuntu SMP PREEMPT_DYNAMIC Sat Aug  1 04:26:38 UTC 2026 x86_64 GNU/Linux
+rustc 1.85.1 (4eb161250 2025-03-15)
+nvcc_path=/usr/bin/nvcc
+nvcc: NVIDIA (R) Cuda compiler driver
+Copyright (c) 2005-2024 NVIDIA Corporation
+Built on Thu_Mar_28_02:18:24_PDT_2024
+Cuda compilation tools, release 12.4, V12.4.131
+Build cuda_12.4.r12.4/compiler.34097967_0
+NVIDIA GeForce RTX 5060 Ti, GPU-368086a4-0c4f-fee1-f8ba-4f10e7f29f8c, 595.84, 16311 MiB

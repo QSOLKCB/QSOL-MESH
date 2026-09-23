@@ -1,0 +1,101 @@
+QSOL-MESH machine contracts valid
+retained Phase 1 CUDA-host evidence: valid
+retained GALAXY CPU parity evidence verified
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.093s
+
+OK
+   Compiling qsol-mesh-core v0.1.0 (/home/trent/qsol-mesh-cuda.5ZPk9H/source/crates/mesh-core)
+   Compiling qsol-mesh-cli v0.1.0 (/home/trent/qsol-mesh-cuda.5ZPk9H/source/crates/mesh-cli)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.11s
+     Running unittests src/main.rs (target/debug/deps/mesh-cc7e63a08b216a53)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/lib.rs (target/debug/deps/qsol_mesh_core-4e5445658c340d35)
+
+running 62 tests
+test accelerator::tests::canonical_helper_path_is_independent_of_current_working_directory ... ok
+test accelerator::tests::malformed_range_worker_protocol_fails_closed ... ok
+test accelerator::tests::malformed_worker_protocol_fails_closed ... ok
+test accelerator::tests::parses_exact_timing_worker_protocol ... ok
+test accelerator::tests::parses_exact_worker_protocol ... ok
+test accelerator::tests::parses_exact_range_worker_protocol ... ok
+test accelerator::tests::range_worker_observation_must_match_request_and_oracle ... ok
+test accelerator::tests::receipt_rejects_noncanonical_launcher_path ... ok
+test accelerator::tests::missing_helper_fails_closed_independently_of_canonical_worker_state ... ok
+test accelerator::tests::timing_protocol_fails_closed_on_bad_or_inconsistent_fields ... ok
+test accelerator::tests::worker_observation_must_match_request_and_oracle ... ok
+test accelerator::tests::receipt_requires_revalidated_cuda_execution ... ok
+test accelerator::tests::timing_receipt_requires_revalidated_cuda_execution ... ok
+test concurrent_split::tests::fixed_split_reduction_remains_deterministic ... ok
+test concurrent_split::tests::concurrent_pair_dispatches_cuda_before_cpu_join ... ok
+test galaxy::tests::archived_galaxy_oracle_is_pinned_exactly ... ok
+test galaxy::tests::baseline_plans_are_static_geometry_not_capability_claims ... ok
+test concurrent_split::tests::concurrent_pair_propagates_cuda_failure_without_cpu_fallback ... ok
+test galaxy::tests::invalid_requests_fail_closed ... ok
+test galaxy::tests::partitioning_handles_the_maximum_galaxy_population ... ok
+test galaxy::tests::ranges_cover_without_gap_or_overlap ... ok
+test galaxy::tests::reduction_is_completion_order_independent_and_wrapping ... ok
+test galaxy::tests::reduction_rejects_gaps_overlaps_and_incomplete_cover ... ok
+test galaxy::tests::regeneration_requests_keep_semantics_outside_mesh ... ok
+test galaxy::tests::unallocatable_partition_counts_fail_closed_without_panicking ... ok
+test galaxy_runtime::tests::invalid_range_fails_before_worker_dispatch ... ok
+test galaxy_runtime::tests::strict_protocol_binds_every_requested_dimension ... ok
+test memory::tests::chunk_geometry_is_bounded_by_every_declared_limit ... ok
+test memory::tests::declared_domain_budgets_are_enforced ... ok
+test memory::tests::forward_or_cyclic_event_dependencies_fail_closed ... ok
+test memory::tests::huge_logical_byte_extent_does_not_materialize_per_chunk_state ... ok
+test memory::tests::invalid_zeroes_and_oversized_partials_fail_closed ... ok
+test memory::tests::physical_materialization_claim_is_forbidden_in_planning_layer ... ok
+test memory::tests::transfer_extent_and_lifetime_are_validated ... ok
+test memory_runtime::tests::invalid_budget_fails_before_launch ... ok
+test memory_runtime::tests::bounded_geometry_and_scalar_parity ... ok
+test memory::tests::receipt_has_required_evidence_sections_and_no_materialization_claim ... ok
+test planner::tests::calibration_rejects_peer_agreement_that_fails_smoke_oracle ... ok
+test memory_runtime::tests::receipt_requires_verify_and_staged_workload_identity ... ok
+test planner::tests::canonical_is_kept_on_calibration_near_tie ... ok
+test planner::tests::clear_calibration_and_full_work_win_promotes_candidate ... ok
+test planner::tests::confirmation_rejects_peer_agreement_that_fails_smoke_oracle ... ok
+test planner::tests::cpu_smoke_cost_field_constraints_fail_closed ... ok
+test planner::tests::confirmation_rejects_unexpected_or_divergent_recorded_evidence ... ok
+test planner::tests::full_work_near_tie_restores_canonical ... ok
+test planner::tests::mismatched_or_unverified_measurements_fail_closed ... ok
+test planner::tests::unobserved_accelerator_candidate_fails_closed ... ok
+test static_split::tests::static_split_requires_two_nonempty_fixed_partitions ... ok
+test planner::tests::cuda_receipt_rejects_cpu_only_plan ... ok
+test tests::smoke_vector_is_stable ... ok
+test tests::smoke_range_vectors_are_stable_and_recombine_exactly ... ok
+test planner::tests::topology_candidate_set_is_bounded_and_deterministic ... ok
+test static_split::tests::known_static_partials_reduce_to_full_oracle ... ok
+test static_split::tests::wrong_partition_partial_fails_closed ... ok
+test tests::workers_are_bounded_by_work_items ... ok
+test tests::invalid_zeroes_and_overflow_fail_closed ... ok
+test tests::command_surface_remains_stable ... ok
+test planner::tests::effective_workers_and_repeats_are_preserved_as_evidence ... ok
+test planner::tests::serializer_revalidates_public_plan_before_claiming_verified ... ok
+test planner::tests::host_probe_runs_real_cpu_candidates_and_emits_receipt ... ok
+test tests::range_worker_counts_preserve_exact_result ... ok
+test tests::worker_counts_preserve_exact_result ... ok
+
+test result: ok. 62 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+   Doc-tests qsol_mesh_core
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+    Checking qsol-mesh-core v0.1.0 (/home/trent/qsol-mesh-cuda.5ZPk9H/source/crates/mesh-core)
+    Checking qsol-mesh-cli v0.1.0 (/home/trent/qsol-mesh-cuda.5ZPk9H/source/crates/mesh-cli)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.65s
+   Compiling qsol-mesh-cli v0.1.0 (/home/trent/qsol-mesh-cuda.5ZPk9H/source/crates/mesh-cli)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.33s
+....
+----------------------------------------------------------------------
+Ran 4 tests in 0.425s
+
+OK
