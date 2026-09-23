@@ -32,11 +32,11 @@
 - [x] Adapter contract without copying GALAXY semantics into MESH.
 - [x] Logical-ID range partitioning and executor-local regeneration requests.
 - [x] Compact partial reductions.
-- [ ] Exact GALAXY oracle parity.
+- [x] Exact GALAXY oracle parity.
   - [x] Frozen v0.4.0 authority and archived CPU oracle checksums are pinned exactly.
-  - [ ] Live partitioned parity requires a GALAXY-owned range entrypoint.
+  - [x] Live partitioned parity through GALAXY's merged CPU range entrypoint, including the archived frozen checksum.
 - [ ] CPU-only/GPU-only/heterogeneous baselines.
-  - [x] Archived CPU-only evidence is bound and static requested baseline geometries are defined.
+  - [x] Archived and live CPU-only evidence are bound; static requested baseline geometries are defined.
   - [ ] GPU-only and heterogeneous execution evidence require a GALAXY-owned accelerator path plus retained CUDA-host evidence.
 
 ## Phase 3 — memory broker
