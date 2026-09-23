@@ -10,6 +10,7 @@ use crate::{
     static_split::{run_static_smoke_partition, StaticSplitRequest},
     SMOKE_WORKLOAD_ID,
 };
+use std::path::PathBuf;
 use std::time::Instant;
 
 pub const CALIBRATED_PLAN_SCHEMA: &str = "qsol.mesh.calibrated-plan.v1";
@@ -120,6 +121,17 @@ pub struct CalibratedPlan {
 pub struct CudaCalibratedRun {
     plan: CalibratedPlan,
     device: u32,
+    identity: ObservedCudaIdentity,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct ObservedCudaIdentity {
+    device: u32,
+    compute_major: u32,
+    compute_minor: u32,
+    runtime_version: u32,
+    driver_version: u32,
+    helper_path: PathBuf,
 }
 
 impl CudaCalibratedRun {
@@ -619,7 +631,7 @@ fn measure_cuda_smoke(
     items: u64,
     repeats: usize,
     device: u32,
-) -> Result<CostObservation, String> {
+) -> Result<(CostObservation, ObservedCudaIdentity), String> {
     let mut samples = Vec::new();
     samples
         .try_reserve_exact(repeats)
@@ -628,14 +640,14 @@ fn measure_cuda_smoke(
     for _ in 0..repeats {
         let run = run_cuda_smoke_timed(items, device)?;
         let observed = run.observation();
-        let observed_identity = (
-            observed.device_ordinal,
-            observed.compute_major,
-            observed.compute_minor,
-            observed.cuda_runtime_version,
-            observed.cuda_driver_version,
-            run.helper_path().to_path_buf(),
-        );
+        let observed_identity = ObservedCudaIdentity {
+            device: observed.device_ordinal,
+            compute_major: observed.compute_major,
+            compute_minor: observed.compute_minor,
+            runtime_version: observed.cuda_runtime_version,
+            driver_version: observed.cuda_driver_version,
+            helper_path: run.helper_path().to_path_buf(),
+        };
         if let Some(previous) = &identity {
             if previous != &observed_identity {
                 return Err("CUDA calibration worker identity changed between repeats".into());
@@ -661,7 +673,7 @@ fn measure_cuda_smoke(
     let service_ns = total_ns
         .checked_sub(setup_ns + transfer_ns)
         .ok_or("CUDA timing components exceed launcher and verification host time")?;
-    Ok(CostObservation {
+    Ok((CostObservation {
         candidate_id: candidate.id,
         work_units: items,
         effective_cpu_workers: 0,
@@ -670,7 +682,7 @@ fn measure_cuda_smoke(
         transfer_ns,
         checksum: sample.3,
         verified: true,
-    })
+    }, identity.ok_or("CUDA calibration identity missing")?))
 }
 
 fn measure_static_smoke(
@@ -678,7 +690,7 @@ fn measure_static_smoke(
     items: u64,
     repeats: usize,
     device: u32,
-) -> Result<CostObservation, String> {
+) -> Result<(CostObservation, ObservedCudaIdentity), String> {
     let cpu_items = items / 2;
     let request = StaticSplitRequest {
         items,
@@ -687,12 +699,29 @@ fn measure_static_smoke(
         device_ordinal: device,
     };
     let mut samples = Vec::new();
+    let mut identity = None;
     samples
         .try_reserve_exact(repeats)
         .map_err(|_| "static calibration sample allocation failed")?;
     for _ in 0..repeats {
         let started = Instant::now();
         let run = run_static_smoke_partition(request)?;
+        let observed = run.cuda().observation();
+        let observed_identity = ObservedCudaIdentity {
+            device: observed.device_ordinal,
+            compute_major: observed.compute_major,
+            compute_minor: observed.compute_minor,
+            runtime_version: observed.cuda_runtime_version,
+            driver_version: observed.cuda_driver_version,
+            helper_path: run.cuda().helper_path().to_path_buf(),
+        };
+        if let Some(previous) = &identity {
+            if previous != &observed_identity {
+                return Err("static calibration CUDA worker identity changed between repeats".into());
+            }
+        } else {
+            identity = Some(observed_identity);
+        }
         samples.push((
             started.elapsed().as_nanos(),
             run.cpu().effective_workers,
@@ -707,7 +736,7 @@ fn measure_static_smoke(
     }
     samples.sort_unstable_by_key(|sample| sample.0);
     let sample = samples[repeats / 2];
-    Ok(CostObservation {
+    Ok((CostObservation {
         candidate_id: candidate.id,
         work_units: items,
         effective_cpu_workers: sample.1,
@@ -716,7 +745,7 @@ fn measure_static_smoke(
         transfer_ns: 0,
         checksum: sample.2,
         verified: true,
-    })
+    }, identity.ok_or("static calibration CUDA identity missing")?))
 }
 
 /// Opt-in CUDA calibration. No accelerator candidate is admitted unless the
@@ -741,14 +770,29 @@ pub fn calibrate_cuda_smoke_host(
         accelerator_observed: true,
     };
     let candidates = derive_candidates(topology).map_err(str::to_owned)?;
-    let measure = |candidate: CandidatePlan, items| -> Result<CostObservation, String> {
-        match candidate.backend {
-            BackendKind::Cpu => measure_cpu_smoke(candidate, items, repeats).map_err(str::to_owned),
-            BackendKind::Accelerator => measure_cuda_smoke(candidate, items, repeats, device),
+    let mut identity = None;
+    let mut measure = |candidate: CandidatePlan, items| -> Result<CostObservation, String> {
+        let (observation, cuda_identity) = match candidate.backend {
+            BackendKind::Cpu => (measure_cpu_smoke(candidate, items, repeats).map_err(str::to_owned)?, None),
+            BackendKind::Accelerator => {
+                let (observation, identity) = measure_cuda_smoke(candidate, items, repeats, device)?;
+                (observation, Some(identity))
+            }
             BackendKind::HeterogeneousStatic => {
-                measure_static_smoke(candidate, items, repeats, device)
+                let (observation, identity) = measure_static_smoke(candidate, items, repeats, device)?;
+                (observation, Some(identity))
+            }
+        };
+        if let Some(current) = cuda_identity {
+            if let Some(previous) = &identity {
+                if previous != &current {
+                    return Err("CUDA worker identity changed across calibration candidates".into());
+                }
+            } else {
+                identity = Some(current);
             }
         }
+        Ok(observation)
     };
     let mut calibration = Vec::new();
     for candidate in &candidates {
@@ -783,12 +827,19 @@ pub fn calibrate_cuda_smoke_host(
         CalibrationRequest::new(calibration_items, full_work_items, repeats, near_tie_bps),
     )
     .map_err(str::to_owned)?;
-    Ok(CudaCalibratedRun { plan, device })
+    Ok(CudaCalibratedRun {
+        plan,
+        device,
+        identity: identity.ok_or("CUDA calibration identity missing")?,
+    })
 }
 
 pub fn cuda_calibrated_plan_receipt_json(run: &CudaCalibratedRun) -> Result<String, &'static str> {
     let plan = &run.plan;
     let device = run.device;
+    if run.identity.device != device {
+        return Err("CUDA calibration device identity mismatch");
+    }
     validate_calibrated_plan(plan)?;
     if !plan.topology.accelerator_observed
         || !plan
@@ -824,12 +875,16 @@ pub fn cuda_calibrated_plan_receipt_json(run: &CudaCalibratedRun) -> Result<Stri
         .collect::<Result<Vec<_>, _>>()?
         .join(",");
     Ok(format!(
-        "{{\"schema\":\"{CUDA_CALIBRATED_PLAN_RECEIPT_SCHEMA}\",\"source_identity\":{{\"runtime\":\"qsol-mesh-cli\",\"plan_identity\":\"{CALIBRATED_PLAN_ID}\",\"plan_version\":\"2.0.0\"}},\"workload_identity\":{{\"workload_id\":\"{SMOKE_WORKLOAD_ID}\"}},\"requested_configuration\":{{\"calibration_items\":{},\"full_work_items\":{},\"repeats\":{},\"near_tie_bps\":{},\"device_ordinal\":{device}}},\"observed_topology\":{{\"available_cpu_workers\":{},\"accelerator_observed\":true,\"cuda_topology_source\":\"canonical-helper-reported\"}},\"effective_execution\":{{\"kind\":\"calibration-and-planning\",\"provisional_candidate_id\":{},\"selected_candidate_id\":{},\"canonical_candidate_id\":{},\"canonical_retained\":{},\"selection_reason\":\"{}\"}},\"memory_plan\":{{\"physical_memory_claim\":false}},\"calibration\":{{\"candidate_budget\":{CANDIDATE_BUDGET},\"candidates\":[{candidates}],\"observations\":[{calibration}],\"full_work_confirmation\":[{confirmation}],\"cost_scopes\":{{\"cpu\":\"run_smoke-end-to-end\",\"accelerator\":\"median-sample-launcher-plus-verification-host-wall-partitioned-by-nested-setup-and-D2H\",\"heterogeneous-static\":\"full-static-call-end-to-end\"}},\"cross_clock_kernel_timing_added\":false}},\"verification\":{{\"kind\":\"scalar-oracle-plus-full-work-confirmation\",\"verified\":true}},\"claim_boundary\":\"host-specific-helper-reported-CUDA-calibration-not-universal-performance-or-kernel-overlap-evidence\"}}",
+        "{{\"schema\":\"{CUDA_CALIBRATED_PLAN_RECEIPT_SCHEMA}\",\"source_identity\":{{\"runtime\":\"qsol-mesh-cli\",\"plan_identity\":\"{CALIBRATED_PLAN_ID}\",\"plan_version\":\"2.0.0\"}},\"workload_identity\":{{\"workload_id\":\"{SMOKE_WORKLOAD_ID}\"}},\"requested_configuration\":{{\"calibration_items\":{},\"full_work_items\":{},\"repeats\":{},\"near_tie_bps\":{},\"device_ordinal\":{device}}},\"observed_topology\":{{\"available_cpu_workers\":{},\"accelerator_observed\":true,\"cuda_compute_major\":{},\"cuda_compute_minor\":{},\"cuda_runtime_version\":{},\"cuda_driver_version\":{},\"cuda_topology_source\":\"canonical-helper-reported\"}},\"effective_execution\":{{\"kind\":\"calibration-and-planning\",\"provisional_candidate_id\":{},\"selected_candidate_id\":{},\"canonical_candidate_id\":{},\"canonical_retained\":{},\"selection_reason\":\"{}\"}},\"memory_plan\":{{\"physical_memory_claim\":false}},\"calibration\":{{\"candidate_budget\":{CANDIDATE_BUDGET},\"candidates\":[{candidates}],\"observations\":[{calibration}],\"full_work_confirmation\":[{confirmation}],\"cost_scopes\":{{\"cpu\":\"run_smoke-end-to-end\",\"accelerator\":\"median-sample-launcher-plus-verification-host-wall-partitioned-by-nested-setup-and-D2H\",\"heterogeneous-static\":\"full-static-call-end-to-end\"}},\"cross_clock_kernel_timing_added\":false}},\"verification\":{{\"kind\":\"scalar-oracle-plus-full-work-confirmation\",\"verified\":true}},\"claim_boundary\":\"host-specific-helper-reported-CUDA-calibration-not-universal-performance-or-kernel-overlap-evidence\"}}",
         plan.calibration_units,
         plan.full_work_units,
         plan.repeats,
         plan.near_tie_bps,
         plan.topology.available_cpu_workers,
+        run.identity.compute_major,
+        run.identity.compute_minor,
+        run.identity.runtime_version,
+        run.identity.driver_version,
         plan.provisional_candidate_id,
         plan.selected_candidate_id,
         plan.canonical_candidate_id,
@@ -940,7 +995,15 @@ mod tests {
     #[test]
     fn cuda_receipt_rejects_cpu_only_plan() {
         let plan = calibrate_cpu_smoke_host(1, 8, 16, 1, 500).unwrap();
-        let forged = CudaCalibratedRun { plan, device: 0 };
+        let forged = CudaCalibratedRun {
+            plan,
+            device: 0,
+            identity: ObservedCudaIdentity {
+                device: 0, compute_major: 12, compute_minor: 0,
+                runtime_version: 13020, driver_version: 13020,
+                helper_path: PathBuf::new(),
+            },
+        };
         assert_eq!(
             cuda_calibrated_plan_receipt_json(&forged),
             Err("CUDA calibration receipt requires measured accelerator candidates")
