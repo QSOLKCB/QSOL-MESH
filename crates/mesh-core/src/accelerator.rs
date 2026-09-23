@@ -490,6 +490,10 @@ fn run_cuda_smoke_timed_with_helper(
 }
 
 fn canonical_cuda_helper_path() -> Result<PathBuf, String> {
+    canonical_cuda_worker_path(CANONICAL_CUDA_HELPER_FILENAME)
+}
+
+pub(crate) fn canonical_cuda_worker_path(filename: &str) -> Result<PathBuf, String> {
     let executable = std::env::current_exe()
         .map_err(|error| format!("cannot resolve running mesh executable: {error}"))?;
     let executable = std::fs::canonicalize(&executable)
@@ -500,7 +504,7 @@ fn canonical_cuda_helper_path() -> Result<PathBuf, String> {
         .ok_or_else(|| {
             "running mesh executable is outside the supported application target tree".to_owned()
         })?;
-    Ok(target_dir.join(CANONICAL_CUDA_HELPER_FILENAME))
+    Ok(target_dir.join(filename))
 }
 
 pub fn run_cuda_smoke(items: u64, device_ordinal: u32) -> Result<CudaSmokeRun, String> {

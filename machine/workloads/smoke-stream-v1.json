@@ -1,0 +1,32 @@
+{
+  "workload_id": "mesh-smoke-stream-v1",
+  "workload_contract_version": "1.0.0",
+  "logical_domain": {"kind": "u64-half-open-range", "minimum_items": 1},
+  "computation_contract": {
+    "kind": "mesh-smoke-v1-contribution-and-wrapping-u64-sum",
+    "scalar_oracle": "mesh-smoke-v1",
+    "memory_semantics_inherited": false
+  },
+  "partition_contract": {
+    "kind": "contiguous-complete-cover",
+    "empty_partitions": false,
+    "chunk_order_is_commit_order": true
+  },
+  "partial_result_contract": {"kind": "wrapping-u64-sum"},
+  "reduction_contract": {"kind": "chunk-index-order-wrapping-u64"},
+  "verification_contract": {"kind": "scalar-reference-equality", "fail_closed": true},
+  "exactness_contract": {"kind": "bit-exact-u64"},
+  "memory_contract": {
+    "per_item_materialization": true,
+    "materialization_scope": "current-chunk-only",
+    "temporary_state": "O(effective_chunk_items)",
+    "item_bytes_per_domain": 8,
+    "partial_bytes_per_domain": 8,
+    "domains": ["host-pinned", "accelerator-local"],
+    "declared_domain_budgets_required": true,
+    "budget_includes_partial_buffers": true,
+    "allocation_reuse_across_chunks": true
+  },
+  "side_effect_contract": {"kind": "none"},
+  "claim_boundary": "bounded-staged-stream-bring-up-with-smoke-arithmetic-not-performance-evidence"
+}

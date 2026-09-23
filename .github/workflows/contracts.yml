@@ -18,7 +18,9 @@ jobs:
       - name: Validate retained GALAXY CPU parity evidence
         run: python3 scripts/validate-retained-galaxy-cpu-evidence.py
       - name: Validate CUDA build script syntax
-        run: bash -n scripts/build-cuda-helper.sh
+        run: bash -n scripts/build-cuda-helper.sh scripts/build-cuda-stream-helper.sh scripts/capture-phase3-cuda-stream.sh
+      - name: Verify selected CUDA compiler provenance
+        run: python3 scripts/test-phase3-compiler-capture.py
       - name: Validate JSON syntax independently
         run: |
           python3 - <<'PY'
@@ -60,6 +62,18 @@ jobs:
           fi
           test ! -s /tmp/mesh-cuda-stdout
           grep -q 'CUDA helper launch failed' /tmp/mesh-cuda-stderr
+          if cargo run -q -p qsol-mesh-cli --locked -- verify smoke-stream --items 1000 --chunk-items 200 --pinned-limit-bytes 1608 --accelerator-limit-bytes 1608 --json > /tmp/mesh-stream-stdout 2> /tmp/mesh-stream-stderr; then
+            echo "missing canonical CUDA stream worker unexpectedly produced execution evidence" >&2
+            exit 1
+          fi
+          test ! -s /tmp/mesh-stream-stdout
+          grep -q 'CUDA stream helper launch failed' /tmp/mesh-stream-stderr
+          if cargo run -q -p qsol-mesh-cli --locked -- run smoke-stream --items 1000 --json > /tmp/mesh-stream-run-stdout 2> /tmp/mesh-stream-run-stderr; then
+            echo "undeclared run smoke-stream activation was accepted" >&2
+            exit 1
+          fi
+          test ! -s /tmp/mesh-stream-run-stdout
+          grep -q 'smoke-stream is admitted only by verify' /tmp/mesh-stream-run-stderr
           cat > /tmp/mesh-cuda-forged-helper <<'SH'
           #!/usr/bin/env bash
           printf 'qsol.mesh.cuda-smoke-worker.v1\titems=1000\tchecksum=d3886842145b489c\tblocks=1\tthreads_per_block=256\tdevice=0\tcompute_major=12\tcompute_minor=0\tcuda_runtime=13020\tcuda_driver=13020\n'

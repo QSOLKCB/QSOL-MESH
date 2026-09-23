@@ -42,15 +42,18 @@
 ## Phase 3 — memory broker
 - [ ] Persistent accelerator allocation pool.
   - [x] Persistent accelerator-local pool planning, lifetime, and reuse contract.
-  - [ ] Physical persistent pool is not provided by the single-checksum CUDA worker.
+  - [x] Bounded CUDA stream worker allocates its device input and partial buffers once per run and reuses them across chunks.
+  - [ ] Retained CUDA-host evidence of physical pool allocation and reuse.
 - [ ] Bounded pinned-host staging.
   - [x] Bounded staging plan, peak-live enforcement, and reuse contract.
-  - [ ] Physical OS/CUDA-backed pinned staging remains backend-owned.
+  - [x] CUDA-owned pinned staging and compact partial buffers are allocated once under explicit physical budgets.
+  - [ ] Retained CUDA-host evidence of OS/CUDA-backed pinned staging.
 - [x] Explicit transfer/event graph.
 - [x] Memory-plan receipts.
 - [ ] Stream/reduce/discard where permitted.
   - [x] Constant-size reusable stream/reduce/discard planning template.
-  - [ ] Runtime streaming execution remains a later executor rung.
+  - [x] Separate smoke CUDA worker implements ordered upload, kernel, compact download, host reduction, and discard per chunk.
+  - [ ] Retained CUDA-host runtime streaming and scalar-oracle receipt.
 
 ## Phase 4 — calibrated planning
 - [ ] Measure CPU/GPU service and setup/transfer costs.
