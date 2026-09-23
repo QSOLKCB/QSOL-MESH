@@ -657,9 +657,10 @@ fn measure_cuda_smoke(
     let sample = samples[repeats / 2];
     let setup_ns = u128::from(sample.1);
     let transfer_ns = u128::from(sample.2);
-    let service_ns = sample.0
+    let total_ns = sample.0;
+    let service_ns = total_ns
         .checked_sub(setup_ns + transfer_ns)
-        .ok_or("CUDA timing components exceed launcher wall time")?;
+        .ok_or("CUDA timing components exceed launcher and verification host time")?;
     Ok(CostObservation {
         candidate_id: candidate.id,
         work_units: items,
