@@ -4,16 +4,28 @@ import hashlib
 import json
 from pathlib import Path
 
-root = Path(__file__).resolve().parents[1] / "evidence" / "phase2-galaxy-cpu-parity-2026-09-23"
+repository = Path(__file__).resolve().parents[1]
+root = repository / "evidence" / "phase2-galaxy-cpu-parity-2026-09-23"
+evidence_contract = json.loads((repository / "machine" / "evidence-contract.v1.json").read_text())
+range_contract = json.loads((repository / "machine" / "galaxy-range-contract.v2.json").read_text())
 cases = {
-    "bounded.json": ("3e525d2d083613fa2803d0179cbe8b7a1c6d17a8e02d7b098823da4298c332d2", "ffcb0799ff078917", 4, False),
-    "frozen.json": ("5305c828579dd2cc8c4e200bc0645429b33d86ad6d11bb3b4da259c4f38b1090", "8d6f07bd77e2fc16", 2, True),
+    "bounded.json": ("b362a24da907f8249fe055ce3ae586b24c48ed706231d97b1e2f5bfba8b81e3a", "ffcb0799ff078917", 4, False),
+    "frozen.json": ("1f26830e677b75e5d9cfda086385b5effb7b7800cd3c0c3952fbb7e8b2535ef3", "8d6f07bd77e2fc16", 2, True),
 }
 for name, (digest, checksum, partitions, archived) in cases.items():
     raw = (root / name).read_bytes()
     assert hashlib.sha256(raw).hexdigest() == digest, name
     receipt = json.loads(raw)
-    assert receipt["schema"] == "qsol.mesh.galaxy-cpu-parity-receipt.v1"
+    assert receipt["schema"] == range_contract["evidence_boundary"]["receipt_schema"]
+    assert set(evidence_contract["receipt_required_sections"]) <= set(receipt)
+    assert receipt["observed_topology"] == {
+        "status": "not-observed", "source": "external-galaxy-cpu-range-process"
+    }
+    assert receipt["memory_plan"] == {
+        "status": "not-observed", "owner": "galaxy-cpu-runtime",
+        "mesh_materializes_logical_population": False,
+    }
+    assert receipt["calibration"] == {"performed": False, "placement_decision_influenced": False}
     assert receipt["requested_configuration"]["partitions"] == partitions
     assert receipt["effective_execution"]["partial_count"] == partitions
     verification = receipt["verification"]

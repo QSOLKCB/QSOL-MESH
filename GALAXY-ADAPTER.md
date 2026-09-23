@@ -58,16 +58,11 @@ MESH can now construct static requested geometries for CPU-only,
 accelerator-only, and 50/50 heterogeneous execution. Those are plans, not
 execution evidence.
 
-The archived GALAXY CPU result is bound as evidence. Live partitioned GALAXY
-parity and real accelerator/heterogeneous baselines remain gated on two concrete
-prerequisites:
-
-1. a GALAXY-owned range entrypoint that accepts the adapter request without
-   moving GALAXY semantics into MESH;
-2. the real accelerator executor from Phase 1.
-
-Until those exist, QSOL-MESH must not label a requested accelerator plan as an
-executed GPU baseline.
+The archived GALAXY CPU result and retained live CPU range parity receipts are
+bound as evidence. GALAXY's CPU range entrypoint is merged and admitted by the
+v2 contract below. Accelerator-only and heterogeneous GALAXY baselines still
+require a GALAXY-owned accelerator range path and retained CUDA-host evidence.
+QSOL-MESH must not label a requested accelerator plan as an executed GPU baseline.
 
 ## Live CPU range rung (v2)
 
@@ -77,7 +72,8 @@ address space. The v2 runtime therefore partitions **resident sample indices**
 and passes both the full logical population and full resident count to GALAXY.
 GALAXY alone regenerates each index's global ID and contribution.
 
-Build GALAXY from the range-entrypoint branch, then run:
+Build GALAXY from merged commit
+`623c43a13c0696533164826ec71896488c7aed44`, then run:
 
 ```sh
 mesh verify galaxy-cpu --binary /path/to/galaxy-cpu \
@@ -90,5 +86,6 @@ range. At the frozen geometry it also requires the archived BAM-LUT checksum
 `8d6f07bd77e2fc16`. For smaller geometry the full range comparison checks
 partition parity but is not an independent oracle. The binary is supplied by
 the caller and its provenance is not attested by this receipt. This command
-reports CPU execution only. The GPU and heterogeneous baselines still require
-a GALAXY-owned accelerator range path and CUDA-host evidence.
+reports CPU execution only. Its topology and upstream allocation behavior are
+not observed by MESH; calibration is not performed. The GPU and heterogeneous
+baselines still require a GALAXY-owned accelerator range path and CUDA-host evidence.
