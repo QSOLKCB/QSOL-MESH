@@ -199,7 +199,17 @@ fn parse_static_split(args: &[String]) -> Result<(StaticSplitRequest, bool), Str
     Ok((request, json))
 }
 
-fn parse_calibration(args: &[String]) -> Result<(u64, u64, usize, u32, bool, bool, u32), String> {
+struct CalibrationOptions {
+    calibration_items: u64,
+    full_items: u64,
+    repeats: usize,
+    near_tie_bps: u32,
+    json: bool,
+    cuda: bool,
+    device: u32,
+}
+
+fn parse_calibration(args: &[String]) -> Result<CalibrationOptions, String> {
     let mut calibration_items = 10_000_u64;
     let mut full_items = 100_000_u64;
     let mut repeats = 3_usize;
@@ -308,7 +318,7 @@ fn parse_calibration(args: &[String]) -> Result<(u64, u64, usize, u32, bool, boo
         return Err("CUDA calibration needs at least two items for static partitioning".into());
     }
 
-    Ok((
+    Ok(CalibrationOptions {
         calibration_items,
         full_items,
         repeats,
@@ -316,7 +326,7 @@ fn parse_calibration(args: &[String]) -> Result<(u64, u64, usize, u32, bool, boo
         json,
         cuda,
         device,
-    ))
+    })
 }
 
 fn parse_memory_plan(args: &[String]) -> Result<(MemoryPlanRequest, bool), String> {
@@ -548,8 +558,15 @@ fn print_concurrent_split(command: Command, args: &[String]) -> Result<(), Strin
 }
 
 fn print_calibration(args: &[String]) -> Result<(), String> {
-    let (calibration_items, full_items, repeats, near_tie_bps, json, cuda, device) =
-        parse_calibration(args)?;
+    let CalibrationOptions {
+        calibration_items,
+        full_items,
+        repeats,
+        near_tie_bps,
+        json,
+        cuda,
+        device,
+    } = parse_calibration(args)?;
     let cuda_run = if cuda {
         Some(calibrate_cuda_smoke_host(
             available_workers(),
@@ -589,7 +606,7 @@ fn print_calibration(args: &[String]) -> Result<(), String> {
                 cuda_calibrated_plan_receipt_json(cuda_run.as_ref().ok_or("CUDA result missing")?)
                     .map_err(str::to_owned)?
             } else {
-                calibrated_plan_receipt_json(&plan).map_err(str::to_owned)?
+                calibrated_plan_receipt_json(plan).map_err(str::to_owned)?
             }
         );
     } else {
