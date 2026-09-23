@@ -285,13 +285,14 @@ jobs:
           rustup default 1.85.1
       - name: Build both runtimes
         run: |
+          mv galaxy-upstream "$RUNNER_TEMP/galaxy-upstream"
           cargo build --release --locked -p qsol-mesh-cli
-          cargo build --release --locked --manifest-path galaxy-upstream/cpu-runtime/Cargo.toml --bin galaxy-cpu
+          cargo build --release --locked --manifest-path "$RUNNER_TEMP/galaxy-upstream/cpu-runtime/Cargo.toml" --bin galaxy-cpu
       - name: Verify bounded and frozen partitioned parity
         run: |
           mkdir -p parity-receipts
-          ./target/release/mesh verify galaxy-cpu --binary "$GITHUB_WORKSPACE/galaxy-upstream/cpu-runtime/target/release/galaxy-cpu" --logical 4096 --resident 1024 --frames 2 --seed 303 --partitions 4 --json > parity-receipts/bounded.json
-          ./target/release/mesh verify galaxy-cpu --binary "$GITHUB_WORKSPACE/galaxy-upstream/cpu-runtime/target/release/galaxy-cpu" --partitions 2 --json > parity-receipts/frozen.json
+          ./target/release/mesh verify galaxy-cpu --binary "$RUNNER_TEMP/galaxy-upstream/cpu-runtime/target/release/galaxy-cpu" --logical 4096 --resident 1024 --frames 2 --seed 303 --partitions 4 --json > parity-receipts/bounded.json
+          ./target/release/mesh verify galaxy-cpu --binary "$RUNNER_TEMP/galaxy-upstream/cpu-runtime/target/release/galaxy-cpu" --partitions 2 --json > parity-receipts/frozen.json
           python3 - <<'PY'
           import hashlib
           import json
