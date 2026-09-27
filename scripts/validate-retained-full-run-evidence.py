@@ -144,6 +144,11 @@ def verify_split_geometry(receipt: dict, *, concurrent: bool) -> None:
     )
 
     require(
+        type(topology.get("cuda_device_ordinal")) is int
+        and 0 <= topology["cuda_device_ordinal"] <= U32_MAX,
+        "phase1 split observed CUDA device ordinal drift",
+    )
+    require(
         topology
         == {
             "available_cpu_workers": 32,
@@ -157,6 +162,11 @@ def verify_split_geometry(receipt: dict, *, concurrent: bool) -> None:
             "cuda_evidence_source": "cuda-helper-process",
         },
         "phase1 split observed CUDA topology drift",
+    )
+    require(
+        type(cuda.get("device_ordinal")) is int
+        and 0 <= cuda["device_ordinal"] <= U32_MAX,
+        "phase1 split effective CUDA device ordinal drift",
     )
     require(
         topology["cuda_device_ordinal"] == cuda["device_ordinal"],
@@ -239,8 +249,16 @@ def verify_phase1() -> None:
         == {"workload_id": "mesh-smoke-v1", "workload_contract_version": "1.0.0"},
         "phase1 CPU workload identity drift",
     )
+    cpu_request = cpu["requested_configuration"]
     require(
-        cpu["requested_configuration"]
+        type(cpu_request.get("items")) is int
+        and 0 < cpu_request["items"] <= U64_MAX
+        and type(cpu_request.get("workers")) is int
+        and cpu_request["workers"] > 0,
+        "phase1 CPU request numeric field drift",
+    )
+    require(
+        cpu_request
         == {"command": "verify", "items": 100000, "workers": 8},
         "phase1 CPU request drift",
     )
@@ -682,6 +700,10 @@ def verify_stream_receipt(
         "phase3 reusable allocation geometry drift",
     )
     require(memory["reuse_across_chunks"] is True, "phase3 reuse claim drift")
+    require(
+        receipt["verification"].get("verified") is True,
+        "phase3 verified status drift",
+    )
     require(
         receipt["verification"]
         == {
