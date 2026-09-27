@@ -208,6 +208,15 @@ def verify_phase1() -> None:
         "phase1 CPU request drift",
     )
     require(
+        cpu["observed_topology"]
+        == {
+            "arch": "x86_64",
+            "os": "linux",
+            "available_parallelism": 32,
+        },
+        "phase1 CPU observed topology drift",
+    )
+    require(
         cpu["effective_execution"]
         == {
             "backend": "cpu",
@@ -374,8 +383,10 @@ def verify_phase1() -> None:
     )
     effective = static["effective_execution"]
     require(
-        effective["concurrent"] is False and effective["adaptive"] is False,
-        "phase1 static claim boundary drift",
+        effective["kind"] == "static-cpu-cuda-partition-v1"
+        and effective["concurrent"] is False
+        and effective["adaptive"] is False,
+        "phase1 static effective execution kind drift",
     )
     verify_split_geometry(static, concurrent=False)
     require(
@@ -449,8 +460,10 @@ def verify_phase1() -> None:
     )
     effective = concurrent["effective_execution"]
     require(
-        effective["concurrent_dispatch"] is True and effective["adaptive"] is False,
-        "phase1 concurrent dispatch drift",
+        effective["kind"] == "concurrent-cpu-cuda-partition-v1"
+        and effective["concurrent_dispatch"] is True
+        and effective["adaptive"] is False,
+        "phase1 concurrent effective execution kind drift",
     )
     dispatch = effective["dispatch_contract"]
     require(
