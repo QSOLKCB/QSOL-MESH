@@ -479,6 +479,116 @@ class RetainedFullRunEvidenceRegressionTest(unittest.TestCase):
                         "phase3 verified status drift",
                     )
 
+    def test_verified_status_requires_boolean_true_across_receipts(self) -> None:
+        cases = (
+            (
+                "phase1/cpu-verify-100000.json",
+                retained.verify_phase1,
+                ("verification",),
+                "phase1 CPU verified status drift",
+            ),
+            (
+                "phase1/cuda-verify-100000.json",
+                retained.verify_phase1,
+                ("verification",),
+                "phase1 CUDA verified status drift",
+            ),
+            (
+                "phase1/static-verify-100000-40000.json",
+                retained.verify_phase1,
+                ("verification",),
+                "phase1 static verified status drift",
+            ),
+            (
+                "phase1/concurrent-verify-100000-40000.json",
+                retained.verify_phase1,
+                ("verification",),
+                "phase1 concurrent verified status drift",
+            ),
+            (
+                "phase4/timing.json",
+                retained.verify_phase4,
+                ("verification",),
+                "phase4 timing verified status drift",
+            ),
+            (
+                "phase4/calibration.json",
+                retained.verify_phase4,
+                ("verification",),
+                "phase4: calibration verified status drift",
+            ),
+            (
+                "phase5/adaptive.json",
+                retained.verify_phase5,
+                ("verification",),
+                "phase5 aggregate verified status drift",
+            ),
+        )
+        for relative, verifier, path, message in cases:
+            for value in (1, 1.0, "true"):
+                with self.subTest(relative=relative, value=value):
+                    def mutate(receipt: dict, *, path=path, value=value) -> None:
+                        node = receipt
+                        for key in path:
+                            node = node[key]
+                        node["verified"] = value
+
+                    self._mutate_json_and_reject(
+                        relative,
+                        mutate,
+                        verifier,
+                        message,
+                    )
+
+    def test_calibration_topology_device_ordinal_requires_exact_u32(self) -> None:
+        for relative, verifier, path, message in (
+            (
+                "phase4/calibration.json",
+                retained.verify_phase4,
+                ("observed_topology", "device_ordinal"),
+                "phase4: calibration topology device ordinal drift",
+            ),
+            (
+                "phase5/adaptive.json",
+                retained.verify_phase5,
+                (
+                    "effective_execution",
+                    "phases",
+                    0,
+                    "calibration_receipt",
+                    "observed_topology",
+                    "device_ordinal",
+                ),
+                "phase5 phase 0: calibration topology device ordinal drift",
+            ),
+        ):
+            for value in (False, 0.0, 1):
+                with self.subTest(relative=relative, value=value):
+                    def mutate(receipt: dict, *, path=path, value=value) -> None:
+                        node = receipt
+                        for key in path[:-1]:
+                            node = node[key]
+                        node[path[-1]] = value
+
+                    self._mutate_json_and_reject(
+                        relative,
+                        mutate,
+                        verifier,
+                        message + "|CUDA calibration topology/identity drift",
+                    )
+
+    def test_phase5_cuda_activation_requires_boolean_true(self) -> None:
+        for value in (1, 1.0, "true"):
+            with self.subTest(value=value):
+                self._mutate_json_and_reject(
+                    "phase5/adaptive.json",
+                    lambda receipt, value=value: receipt["requested_configuration"].update(
+                        cuda=value
+                    ),
+                    retained.verify_phase5,
+                    "phase5 CUDA activation flag drift",
+                )
+
     def test_phase1_cpu_topology_mutation(self) -> None:
         self._mutate_json_and_reject(
             "phase1/cpu-verify-100000.json",
