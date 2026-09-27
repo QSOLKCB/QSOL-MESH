@@ -623,8 +623,14 @@ def verify_stream_receipt(
     )
     request = receipt["requested_configuration"]
     require(request == expected_request, "phase3 stream request drift")
+    stream_topology = receipt["observed_topology"]
     require(
-        receipt["observed_topology"]
+        type(stream_topology.get("device_ordinal")) is int
+        and 0 <= stream_topology["device_ordinal"] <= U32_MAX,
+        "phase3 observed CUDA device ordinal drift",
+    )
+    require(
+        stream_topology
         == {
             "accelerator_observed": True,
             "device_ordinal": request["device_ordinal"],
@@ -1197,6 +1203,10 @@ def verify_phase4() -> None:
         type(timing_request.get("device_ordinal")) is int
         and 0 <= timing_request["device_ordinal"] <= U32_MAX,
         "phase4 timing requested device ordinal drift",
+    )
+    require(
+        timing_request.get("timing") is True,
+        "phase4 timing activation flag drift",
     )
     require(
         timing_request
