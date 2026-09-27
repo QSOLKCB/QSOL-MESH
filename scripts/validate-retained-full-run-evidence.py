@@ -132,6 +132,18 @@ def verify_split_geometry(receipt: dict, *, concurrent: bool) -> None:
     topology = receipt["observed_topology"]
 
     require(
+        type(request["items"]) is int
+        and 0 < request["items"] <= U64_MAX
+        and type(request["cpu_items"]) is int
+        and 0 < request["cpu_items"] <= U64_MAX
+        and type(request["cpu_workers"]) is int
+        and request["cpu_workers"] > 0
+        and type(request["device_ordinal"]) is int
+        and 0 <= request["device_ordinal"] <= U32_MAX,
+        "phase1 split request numeric field drift",
+    )
+
+    require(
         topology
         == {
             "available_cpu_workers": 32,
@@ -168,7 +180,8 @@ def verify_split_geometry(receipt: dict, *, concurrent: bool) -> None:
         "phase1 CUDA split range drift",
     )
     require(
-        cpu["requested_workers"] == request["cpu_workers"],
+        type(cpu["requested_workers"]) is int
+        and cpu["requested_workers"] == request["cpu_workers"],
         "phase1 split requested CPU workers drift",
     )
     expected_cpu_workers = min(request["cpu_workers"], cpu_items)
@@ -730,6 +743,15 @@ def validate_cost_observation(
         f"{context}: observation candidate drift",
     )
     require(
+        type(work_units) is int and 0 < work_units <= U64_MAX,
+        f"{context}: invalid expected work size",
+    )
+    require(
+        type(observation["work_units"]) is int
+        and 0 < observation["work_units"] <= U64_MAX,
+        f"{context}: invalid observation work size",
+    )
+    require(
         observation["work_units"] == work_units,
         f"{context}: observation work size drift",
     )
@@ -844,7 +866,9 @@ def verify_calibration_receipt(
     request = receipt["requested_configuration"]
     require(request == expected_request, f"{context}: calibration request drift")
     require(
-        2 <= request["calibration_items"] <= request["full_work_items"] <= U64_MAX,
+        type(request["calibration_items"]) is int
+        and type(request["full_work_items"]) is int
+        and 2 <= request["calibration_items"] <= request["full_work_items"] <= U64_MAX,
         f"{context}: calibration work bounds drift",
     )
     require(
