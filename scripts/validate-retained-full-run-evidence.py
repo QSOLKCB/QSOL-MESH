@@ -298,6 +298,10 @@ def verify_phase1() -> None:
         "phase1 CPU claim boundary drift",
     )
     require(
+        cpu["verification"].get("verified") is True,
+        "phase1 CPU verified status drift",
+    )
+    require(
         cpu["verification"]
         == {
             "kind": "scalar-reference-equality",
@@ -399,6 +403,10 @@ def verify_phase1() -> None:
         "phase1 CUDA claim boundary drift",
     )
     require(
+        cuda["verification"].get("verified") is True,
+        "phase1 CUDA verified status drift",
+    )
+    require(
         cuda["verification"]
         == {
             "kind": "scalar-reference-equality",
@@ -469,6 +477,10 @@ def verify_phase1() -> None:
         effective["cpu"]["checksum"] == CPU_40K_CHECKSUM
         and effective["cuda"]["checksum"] == CUDA_60K_CHECKSUM,
         "phase1 static partition checksum drift",
+    )
+    require(
+        static["verification"].get("verified") is True,
+        "phase1 static verified status drift",
     )
     require(
         static["verification"]
@@ -556,6 +568,10 @@ def verify_phase1() -> None:
         effective["cpu"]["checksum"] == CPU_40K_CHECKSUM
         and effective["cuda"]["checksum"] == CUDA_60K_CHECKSUM,
         "phase1 concurrent partition checksum drift",
+    )
+    require(
+        concurrent["verification"].get("verified") is True,
+        "phase1 concurrent verified status drift",
     )
     require(
         concurrent["verification"]
@@ -928,12 +944,21 @@ def verify_calibration_receipt(
         f"{context}: calibration device bound drift",
     )
     require(
+        receipt["verification"].get("verified") is True,
+        f"{context}: calibration verified status drift",
+    )
+    require(
         receipt["verification"]
         == {"kind": "scalar-oracle-plus-full-work-confirmation", "verified": True},
         f"{context}: calibration verification drift",
     )
 
     topology = receipt["observed_topology"]
+    require(
+        type(topology.get("device_ordinal")) is int
+        and 0 <= topology["device_ordinal"] <= U32_MAX,
+        f"{context}: calibration topology device ordinal drift",
+    )
     require(
         topology
         == {
@@ -1257,6 +1282,10 @@ def verify_phase4() -> None:
         "phase4 timing claim boundary drift",
     )
     require(
+        timing["verification"].get("verified") is True,
+        "phase4 timing verified status drift",
+    )
+    require(
         timing["verification"]
         == {
             "kind": "scalar-reference-equality",
@@ -1401,6 +1430,7 @@ def verify_phase5() -> None:
         "cuda": True,
         "device_ordinal": 0,
     }
+    require(request.get("cuda") is True, "phase5 CUDA activation flag drift")
     require(request == expected_request, "phase5 request drift")
     require(
         1 <= len(request["phase_items"]) <= 64,
@@ -1579,6 +1609,10 @@ def verify_phase5() -> None:
     )
     aggregate = sum(phase_checksums) & U64_MAX
     aggregate_hex = f"{aggregate:016x}"
+    require(
+        receipt["verification"].get("verified") is True,
+        "phase5 aggregate verified status drift",
+    )
     require(
         receipt["verification"]
         == {
