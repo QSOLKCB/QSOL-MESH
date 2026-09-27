@@ -309,6 +309,86 @@ class RetainedFullRunEvidenceRegressionTest(unittest.TestCase):
             "phase4 timing clock source drift",
         )
 
+    def test_calibration_candidate_ids_reject_boolean_coercion(self) -> None:
+        cases = (
+            (
+                ("calibration", "candidates", 0, "id"),
+                "phase4: calibration candidate field types drift",
+            ),
+            (
+                ("calibration", "observations", 0, "candidate_id"),
+                "phase4: calibration observation candidate ID type drift",
+            ),
+            (
+                ("calibration", "full_work_confirmation", 0, "candidate_id"),
+                "phase4: confirmation candidate ID type drift",
+            ),
+            (
+                ("effective_execution", "provisional_candidate_id"),
+                "phase4: effective candidate ID type drift",
+            ),
+            (
+                ("effective_execution", "selected_candidate_id"),
+                "phase4: effective candidate ID type drift",
+            ),
+            (
+                ("effective_execution", "canonical_candidate_id"),
+                "phase4: effective candidate ID type drift",
+            ),
+        )
+        for path, message in cases:
+            with self.subTest(path=path):
+                def mutate(receipt: dict, *, path=path) -> None:
+                    node = receipt
+                    for key in path[:-1]:
+                        node = node[key]
+                    node[path[-1]] = False
+
+                self._mutate_json_and_reject(
+                    "phase4/calibration.json",
+                    mutate,
+                    retained.verify_phase4,
+                    message,
+                )
+
+    def test_calibration_candidate_numeric_fields_reject_boolean_coercion(self) -> None:
+        cases = (
+            (("calibration", "candidate_budget"), "phase4: calibration candidate budget drift"),
+            (
+                ("calibration", "candidates", 1, "cpu_workers"),
+                "phase4: calibration candidate field types drift",
+            ),
+            (
+                ("calibration", "candidates", 2, "accelerator_share_bps"),
+                "phase4: calibration candidate field types drift",
+            ),
+        )
+        for path, message in cases:
+            with self.subTest(path=path):
+                def mutate(receipt: dict, *, path=path) -> None:
+                    node = receipt
+                    for key in path[:-1]:
+                        node = node[key]
+                    node[path[-1]] = True
+
+                self._mutate_json_and_reject(
+                    "phase4/calibration.json",
+                    mutate,
+                    retained.verify_phase4,
+                    message,
+                )
+
+    def test_phase5_outer_calibration_duration_covers_nested_measurement(self) -> None:
+        def mutate(receipt: dict) -> None:
+            receipt["effective_execution"]["phases"][0]["calibration_host_ns"] = 1
+
+        self._mutate_json_and_reject(
+            "phase5/adaptive.json",
+            mutate,
+            retained.verify_phase5,
+            "phase5 phase 0: calibration host duration shorter than nested measurement",
+        )
+
     def test_phase4_calibration_candidate_geometry_mutation(self) -> None:
         def mutate(receipt: dict) -> None:
             receipt["calibration"]["candidates"][2].update(
