@@ -13,6 +13,10 @@ CPU_40K_CHECKSUM = "5adf225493d7a5bf"
 CUDA_60K_CHECKSUM = "4259e0fe55e02c8d"
 
 EXPECTED_SHA256 = {
+    "phase1/SHA256SUMS": "304151512dcf00ca78c62dd8d773ef7fff35bc8406f6812e2a4f95bc2ebe62c7",
+    "phase3/SHA256SUMS": "feac1a924147eba9a8a10a9b46d90a154a7e29e3dc0761bbab9ac0bb991fca42",
+    "phase4/SHA256SUMS": "47db5ffd2e6445a0d8ff8583bff9912ec7d8fa291853e90e126daec7ebb3c7b4",
+    "phase5/SHA256SUMS": "2cd8d5da62afa30f9b1f6432e2b4b58220c98513f974cac4236ef595b35ed39f",
     "phase1/cpu-verify-100000.json": "5149e7b084a93d5ba60f80d38f9c45fffd1225d7e0520dad2cf8b48770fb334b",
     "phase1/cuda-verify-100000.json": "05c3191184ebbc4829e359d4e0b29ded05ece2b219ad15b947cdb09904c568f7",
     "phase1/static-verify-100000-40000.json": "a7c83788a8574eea66d0fb129a8990a9c5ed3c0768783f705d1f54e663e4bd01",
