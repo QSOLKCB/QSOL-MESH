@@ -893,7 +893,25 @@ def verify_calibration_receipt(
         },
     ]
     require(
-        calibration["candidate_budget"] == 4 and candidates == expected_candidates,
+        type(calibration["candidate_budget"]) is int
+        and calibration["candidate_budget"] == 4,
+        f"{context}: calibration candidate budget drift",
+    )
+    require(
+        all(
+            type(candidate.get("id")) is int
+            and 0 <= candidate["id"] <= U32_MAX
+            and type(candidate.get("cpu_workers")) is int
+            and candidate["cpu_workers"] >= 0
+            and type(candidate.get("accelerator_share_bps")) is int
+            and 0 <= candidate["accelerator_share_bps"] <= 10_000
+            and type(candidate.get("canonical")) is bool
+            for candidate in candidates
+        ),
+        f"{context}: calibration candidate field types drift",
+    )
+    require(
+        candidates == expected_candidates,
         f"{context}: calibration candidate geometry drift",
     )
     require(
@@ -911,6 +929,14 @@ def verify_calibration_receipt(
     )
 
     candidate_by_id = {candidate["id"]: candidate for candidate in candidates}
+    require(
+        all(
+            type(observation.get("candidate_id")) is int
+            and 0 <= observation["candidate_id"] <= U32_MAX
+            for observation in observations
+        ),
+        f"{context}: calibration observation candidate ID type drift",
+    )
     observation_ids = [observation["candidate_id"] for observation in observations]
     require(
         len(observations) == len(candidates)
@@ -952,6 +978,14 @@ def verify_calibration_receipt(
         [canonical_id] if provisional == canonical_id else [canonical_id, provisional]
     )
     confirmation = calibration["full_work_confirmation"]
+    require(
+        all(
+            type(observation.get("candidate_id")) is int
+            and 0 <= observation["candidate_id"] <= U32_MAX
+            for observation in confirmation
+        ),
+        f"{context}: confirmation candidate ID type drift",
+    )
     confirmation_ids = [observation["candidate_id"] for observation in confirmation]
     require(
         len(confirmation) == len(required_confirmation_ids)
@@ -991,6 +1025,18 @@ def verify_calibration_receipt(
     require(
         effective["kind"] == "calibration-and-planning",
         f"{context}: calibration effective kind drift",
+    )
+    require(
+        all(
+            type(effective.get(field)) is int
+            and 0 <= effective[field] <= U32_MAX
+            for field in (
+                "provisional_candidate_id",
+                "selected_candidate_id",
+                "canonical_candidate_id",
+            )
+        ),
+        f"{context}: effective candidate ID type drift",
     )
     require(
         effective["provisional_candidate_id"] == provisional
@@ -1319,6 +1365,18 @@ def verify_phase5() -> None:
                 "device_ordinal": request["device_ordinal"],
             },
             context=f"phase5 phase {index}",
+        )
+        nested_totals = [
+            observation["total_ns"]
+            for observation in (
+                calibration_receipt["calibration"]["observations"]
+                + calibration_receipt["calibration"]["full_work_confirmation"]
+            )
+        ]
+        require(
+            nested_totals
+            and phase["calibration_host_ns"] >= max(nested_totals),
+            f"phase5 phase {index}: calibration host duration shorter than nested measurement",
         )
         selected_id = calibration_receipt["effective_execution"]["selected_candidate_id"]
         selected_candidate = next(
