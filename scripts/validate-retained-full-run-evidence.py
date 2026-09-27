@@ -1049,6 +1049,13 @@ def verify_calibration_receipt(
     selected_candidate = candidate_by_id[selected]
     selected_confirmation = confirmation_by_id[selected]
     require(
+        type(effective.get("selected_requested_cpu_workers")) is int
+        and 0 <= effective["selected_requested_cpu_workers"] <= topology["available_cpu_workers"]
+        and type(effective.get("selected_effective_cpu_workers")) is int
+        and 0 <= effective["selected_effective_cpu_workers"] <= topology["available_cpu_workers"],
+        f"{context}: selected worker field types/bounds drift",
+    )
+    require(
         effective["selected_requested_cpu_workers"] == selected_candidate["cpu_workers"]
         and effective["selected_effective_cpu_workers"]
         == selected_confirmation["effective_cpu_workers"],
@@ -1346,12 +1353,16 @@ def verify_phase5() -> None:
             phase["phase_index"] == index and phase["items"] == items,
             "phase5 phase identity drift",
         )
-        for timing_field in ("calibration_host_ns", "execution_host_ns"):
-            require(
-                type(phase[timing_field]) is int
-                and 0 <= phase[timing_field] <= U128_MAX,
-                f"phase5 phase {index}: invalid {timing_field}",
-            )
+        require(
+            type(phase["calibration_host_ns"]) is int
+            and 0 <= phase["calibration_host_ns"] <= U128_MAX,
+            f"phase5 phase {index}: invalid calibration_host_ns",
+        )
+        require(
+            type(phase["execution_host_ns"]) is int
+            and 0 < phase["execution_host_ns"] <= U128_MAX,
+            f"phase5 phase {index}: invalid execution_host_ns",
+        )
 
         expected_calibration_items = min(request["calibration_items"], items)
         calibration_receipt = phase["calibration_receipt"]
@@ -1412,6 +1423,17 @@ def verify_phase5() -> None:
         )
 
         execution = phase["execution"]
+        require(
+            type(execution.get("requested_cpu_workers")) is int
+            and 0 <= execution["requested_cpu_workers"] <= receipt["observed_topology"]["available_cpu_workers"]
+            and type(execution.get("effective_cpu_workers")) is int
+            and 0 <= execution["effective_cpu_workers"] <= receipt["observed_topology"]["available_cpu_workers"]
+            and type(execution.get("cpu_items")) is int
+            and 0 <= execution["cpu_items"] <= items
+            and type(execution.get("cuda_items")) is int
+            and 0 <= execution["cuda_items"] <= items,
+            "phase5 execution geometry field types/bounds drift",
+        )
         require(
             execution["backend"] == backend
             and execution["requested_cpu_workers"] == expected_requested_workers
