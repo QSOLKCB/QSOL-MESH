@@ -110,6 +110,27 @@ def verify_split_geometry(receipt: dict, *, concurrent: bool) -> None:
     cpu_items = request["cpu_items"]
     cpu = effective["cpu"]
     cuda = effective["cuda"]
+    topology = receipt["observed_topology"]
+
+    require(
+        topology
+        == {
+            "available_cpu_workers": 32,
+            "accelerator_observed": True,
+            "cuda_device_ordinal": request["device_ordinal"],
+            "cuda_compute_major": 12,
+            "cuda_compute_minor": 0,
+            "cuda_runtime_version": 12040,
+            "cuda_driver_version": 13020,
+            "cuda_helper_path": "/home/trent/qsolmesh-dev/QSOL-MESH/target/mesh-cuda-smoke",
+            "cuda_evidence_source": "cuda-helper-process",
+        },
+        "phase1 split observed CUDA topology drift",
+    )
+    require(
+        topology["cuda_device_ordinal"] == cuda["device_ordinal"],
+        "phase1 split observed/effective CUDA device drift",
+    )
 
     require(
         0 < cpu_items < items,
@@ -288,9 +309,18 @@ def verify_phase1() -> None:
     )
     require(cuda["calibration"] == {"performed": False}, "phase1 CUDA calibration drift")
     require(
-        cuda["verification"]["verified"] is True
-        and cuda["verification"]["checksum"] == FULL_CHECKSUM
-        and cuda["verification"]["reference"] == FULL_CHECKSUM,
+        cuda["claim_boundary"]
+        == "experimental-nvidia-cuda-smoke-single-device-helper-reported-topology-not-performance-evidence",
+        "phase1 CUDA claim boundary drift",
+    )
+    require(
+        cuda["verification"]
+        == {
+            "kind": "scalar-reference-equality",
+            "checksum": FULL_CHECKSUM,
+            "reference": FULL_CHECKSUM,
+            "verified": True,
+        },
         "phase1 CUDA oracle drift",
     )
 
@@ -1013,9 +1043,13 @@ def verify_phase4() -> None:
         "phase4 timing claim boundary drift",
     )
     require(
-        timing["verification"]["verified"] is True
-        and timing["verification"]["checksum"] == FULL_CHECKSUM
-        and timing["verification"]["reference"] == FULL_CHECKSUM,
+        timing["verification"]
+        == {
+            "kind": "scalar-reference-equality",
+            "checksum": FULL_CHECKSUM,
+            "reference": FULL_CHECKSUM,
+            "verified": True,
+        },
         "phase4 timing oracle drift",
     )
     values = timing["timing"]
