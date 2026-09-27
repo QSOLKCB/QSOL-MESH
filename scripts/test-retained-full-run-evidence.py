@@ -202,6 +202,48 @@ class RetainedFullRunEvidenceRegressionTest(unittest.TestCase):
                             message,
                         )
 
+    def test_cuda_thread_width_matches_canonical_worker(self) -> None:
+        cases = (
+            (
+                "phase1/cuda-verify-100000.json",
+                retained.verify_phase1,
+                ("effective_execution",),
+                "phase1 CUDA effective execution drift",
+            ),
+            (
+                "phase1/static-verify-100000-40000.json",
+                retained.verify_phase1,
+                ("effective_execution", "cuda"),
+                "phase1 split CUDA launch geometry drift",
+            ),
+            (
+                "phase1/concurrent-verify-100000-40000.json",
+                retained.verify_phase1,
+                ("effective_execution", "cuda"),
+                "phase1 split CUDA launch geometry drift",
+            ),
+            (
+                "phase4/timing.json",
+                retained.verify_phase4,
+                ("effective_execution",),
+                "phase4 timing effective CUDA execution drift",
+            ),
+        )
+        for relative, verifier, path, message in cases:
+            with self.subTest(relative=relative):
+                def mutate(receipt: dict, *, path=path) -> None:
+                    node = receipt
+                    for key in path:
+                        node = node[key]
+                    node["threads_per_block"] = 1
+
+                self._mutate_json_and_reject(
+                    relative,
+                    mutate,
+                    verifier,
+                    message,
+                )
+
     def test_stream_numeric_fields_reject_boolean_coercion(self) -> None:
         cases = (
             (("effective_execution", "effective_chunk_items"), "phase3 effective chunk geometry drift"),
@@ -423,6 +465,55 @@ class RetainedFullRunEvidenceRegressionTest(unittest.TestCase):
                     message,
                 )
 
+    def test_accelerator_total_cost_must_be_positive(self) -> None:
+        def mutate(receipt: dict) -> None:
+            observation = next(
+                observation
+                for observation in receipt["calibration"]["observations"]
+                if observation["candidate_id"] == 2
+            )
+            observation["service_ns"] = 0
+            observation["setup_ns"] = 0
+            observation["transfer_ns"] = 0
+            observation["total_ns"] = 0
+
+        self._mutate_json_and_reject(
+            "phase4/calibration.json",
+            mutate,
+            retained.verify_phase4,
+            "phase4 calibration candidate 2: accelerator total cost must be positive",
+        )
+
+    def test_accelerator_confirmation_zero_total_is_rejected_by_shared_validator(self) -> None:
+        candidate = {
+            "id": 2,
+            "backend": "accelerator",
+            "cpu_workers": 0,
+            "accelerator_share_bps": 10_000,
+            "canonical": False,
+        }
+        observation = {
+            "candidate_id": 2,
+            "work_units": 1000,
+            "effective_cpu_workers": 0,
+            "service_ns": 0,
+            "setup_ns": 0,
+            "transfer_ns": 0,
+            "total_ns": 0,
+            "checksum": retained.smoke_reference(1000),
+            "verified": True,
+        }
+        with self.assertRaisesRegex(
+            SystemExit,
+            "confirmation candidate 2: accelerator total cost must be positive",
+        ):
+            retained.validate_cost_observation(
+                observation,
+                candidate=candidate,
+                work_units=1000,
+                context="confirmation candidate 2",
+            )
+
     def test_accelerator_service_and_total_stay_within_formula_width(self) -> None:
         for mode in ("service", "total"):
             with self.subTest(mode=mode):
@@ -491,6 +582,23 @@ class RetainedFullRunEvidenceRegressionTest(unittest.TestCase):
                     ),
                     retained.verify_phase4,
                     "phase4: selected worker field types/bounds drift",
+                )
+
+    def test_phase5_identity_fields_reject_boolean_coercion(self) -> None:
+        cases = (
+            ("phase_index", False),
+            ("items", True),
+        )
+        for field, value in cases:
+            with self.subTest(field=field):
+                def mutate(receipt: dict, *, field=field, value=value) -> None:
+                    receipt["effective_execution"]["phases"][0][field] = value
+
+                self._mutate_json_and_reject(
+                    "phase5/adaptive.json",
+                    mutate,
+                    retained.verify_phase5,
+                    "phase5 phase identity drift",
                 )
 
     def test_phase5_execution_geometry_rejects_boolean_coercion(self) -> None:
