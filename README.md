@@ -8,6 +8,172 @@ Initial CLI: `mesh inspect`, `mesh calibrate`, `mesh plan`, `mesh run`, `mesh ve
 
 Human-readable explanations live at the repository root. Normative automated-agent authority lives under `machine/`.
 
+## Local build and run
+
+Run these commands from the **QSOL-MESH repository root**.
+
+> **Do not install Ubuntu's suggested `mesh` snap.** It is unrelated to QSOL-MESH. The QSOL-MESH `mesh` command is the Rust binary built from `crates/mesh-cli`.
+
+### Prerequisites
+
+QSOL-MESH pins Rust `1.85.1` in `rust-toolchain.toml`. Confirm the Rust toolchain first:
+
+```sh
+rustc --version
+cargo --version
+```
+
+For NVIDIA CUDA execution, also confirm that the NVIDIA driver and CUDA compiler are available:
+
+```sh
+nvidia-smi
+nvcc --version
+```
+
+The CPU path does not require CUDA. The CUDA paths require a CUDA-capable NVIDIA GPU and `nvcc`.
+
+### Build the Rust CLI
+
+From the repository root:
+
+```sh
+cargo build --release -p qsol-mesh-cli
+```
+
+The resulting QSOL-MESH executable is:
+
+```text
+target/release/mesh
+```
+
+Running it without arguments prints the supported command list:
+
+```sh
+./target/release/mesh
+```
+
+### Build the verified CUDA helper
+
+On a CUDA-capable host:
+
+```sh
+bash scripts/build-cuda-helper.sh
+```
+
+The helper is deliberately written to:
+
+```text
+target/mesh-cuda-smoke
+```
+
+Do not rename or relocate this helper for verified CUDA execution. The verified launcher resolves the canonical worker relative to the built application's `target` directory, and caller-selected helper overrides are intentionally not admitted.
+
+You can confirm both binaries exist with:
+
+```sh
+test -x target/release/mesh && echo "mesh CLI: OK"
+test -x target/mesh-cuda-smoke && echo "CUDA helper: OK"
+```
+
+The CUDA helper is an internal worker rather than the user-facing CLI. Running `target/mesh-cuda-smoke` by itself without its required worker arguments will therefore report an argument error; normally invoke it through `mesh`.
+
+### Run the CUDA smoke workload
+
+Use the repo-built release executable:
+
+```sh
+./target/release/mesh run smoke-cuda \
+  --items 100000 \
+  --device 0 \
+  --json
+```
+
+A successful run emits a CUDA smoke receipt whose verification section contains matching `checksum` and `reference` values and:
+
+```json
+"verified": true
+```
+
+### Verify the CUDA smoke workload
+
+```sh
+./target/release/mesh verify smoke-cuda \
+  --items 100000 \
+  --device 0 \
+  --json
+```
+
+This independently checks the CUDA result against the scalar smoke oracle. A successful receipt reports observed NVIDIA CUDA topology and `"verified":true`.
+
+### Optional timing receipt
+
+Timing evidence is opt-in:
+
+```sh
+./target/release/mesh verify smoke-cuda \
+  --items 100000 \
+  --device 0 \
+  --timing \
+  --json
+```
+
+The timing receipt keeps host timing, CUDA event timing, and scalar verification timing as distinct measurements rather than combining them into a synthetic total.
+
+### CPU-only smoke test
+
+CUDA is not required for the baseline CPU workload:
+
+```sh
+./target/release/mesh inspect --json
+
+./target/release/mesh run smoke \
+  --items 100000 \
+  --workers 8 \
+  --json
+
+./target/release/mesh verify smoke \
+  --items 100000 \
+  --workers 8 \
+  --json
+```
+
+### Run through Cargo during development
+
+For CPU commands, or when developing the Rust CLI, Cargo can invoke the binary directly:
+
+```sh
+cargo run --release -p qsol-mesh-cli -- inspect --json
+
+cargo run --release -p qsol-mesh-cli -- \
+  run smoke \
+  --items 100000 \
+  --workers 8 \
+  --json
+```
+
+For verified CUDA execution, prefer `./target/release/mesh` after building both the CLI and canonical CUDA helper as shown above so executable-relative helper resolution remains explicit.
+
+### Minimal CUDA bring-up sequence
+
+For a fresh checkout on an already configured CUDA host, the complete sequence is:
+
+```sh
+cargo build --release -p qsol-mesh-cli
+bash scripts/build-cuda-helper.sh
+
+./target/release/mesh run smoke-cuda \
+  --items 100000 \
+  --device 0 \
+  --json
+
+./target/release/mesh verify smoke-cuda \
+  --items 100000 \
+  --device 0 \
+  --json
+```
+
+If both CUDA commands finish with receipts containing `"verified":true`, the local CUDA smoke execution and scalar-reference verification gates passed for that run.
+
 ## Phase 1 CPU and CUDA bring-up
 
 The first executable workload is deliberately tiny and dependency-free on the CPU path:
