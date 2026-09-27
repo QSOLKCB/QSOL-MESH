@@ -154,6 +154,31 @@ class RetainedFullRunEvidenceRegressionTest(unittest.TestCase):
                     finally:
                         retained.EVIDENCE = original
 
+    def test_cuda_request_items_require_exact_u64(self) -> None:
+        cases = (
+            (
+                "phase1/cuda-verify-100000.json",
+                retained.verify_phase1,
+                "phase1 CUDA requested items drift",
+            ),
+            (
+                "phase4/timing.json",
+                retained.verify_phase4,
+                "phase4 timing requested items drift",
+            ),
+        )
+        for relative, verifier, message in cases:
+            for value in (100000.0, True):
+                with self.subTest(relative=relative, value=value):
+                    self._mutate_json_and_reject(
+                        relative,
+                        lambda receipt, value=value: receipt["requested_configuration"].update(
+                            items=value
+                        ),
+                        verifier,
+                        message,
+                    )
+
     def test_cuda_device_ordinals_require_exact_u32_identity(self) -> None:
         cases = (
             (
