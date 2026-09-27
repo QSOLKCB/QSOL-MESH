@@ -14,6 +14,7 @@ CUDA_60K_CHECKSUM = "4259e0fe55e02c8d"
 U128_MAX = (1 << 128) - 1
 U64_MAX = (1 << 64) - 1
 U32_MAX = (1 << 32) - 1
+CUDA_THREADS_PER_BLOCK = 256
 SMOKE_SEED = 0x4D45_5348_5F53_4D4B
 
 EXPECTED_SHA256 = {
@@ -179,7 +180,7 @@ def verify_split_geometry(receipt: dict, *, concurrent: bool) -> None:
         type(cuda["blocks"]) is int
         and 1 <= cuda["blocks"] <= U32_MAX
         and type(cuda["threads_per_block"]) is int
-        and 1 <= cuda["threads_per_block"] <= U32_MAX,
+        and cuda["threads_per_block"] == CUDA_THREADS_PER_BLOCK,
         "phase1 split CUDA launch geometry drift",
     )
     require(
@@ -321,7 +322,7 @@ def verify_phase1() -> None:
         and type(effective["blocks"]) is int
         and 1 <= effective["blocks"] <= U32_MAX
         and type(effective["threads_per_block"]) is int
-        and 1 <= effective["threads_per_block"] <= U32_MAX
+        and effective["threads_per_block"] == CUDA_THREADS_PER_BLOCK
         and effective["reduction"] == "device-strided-local-sums-plus-atomicAdd-u64",
         "phase1 CUDA effective execution drift",
     )
@@ -770,6 +771,10 @@ def validate_cost_observation(
             f"{context}: accelerator observation reports CPU workers",
         )
         require(
+            observation["total_ns"] > 0,
+            f"{context}: accelerator total cost must be positive",
+        )
+        require(
             observation["setup_ns"] <= U64_MAX
             and observation["transfer_ns"] <= U64_MAX,
             f"{context}: accelerator timing component width drift",
@@ -1134,7 +1139,7 @@ def verify_phase4() -> None:
         and type(timing_effective["blocks"]) is int
         and 1 <= timing_effective["blocks"] <= U32_MAX
         and type(timing_effective["threads_per_block"]) is int
-        and 1 <= timing_effective["threads_per_block"] <= U32_MAX
+        and timing_effective["threads_per_block"] == CUDA_THREADS_PER_BLOCK
         and timing_effective["reduction"]
         == "device-strided-local-sums-plus-atomicAdd-u64",
         "phase4 timing effective CUDA execution drift",
@@ -1365,7 +1370,10 @@ def verify_phase5() -> None:
     phase_checksums = []
     for phase, (index, items, checksum) in zip(effective["phases"], expected):
         require(
-            phase["phase_index"] == index and phase["items"] == items,
+            type(phase["phase_index"]) is int
+            and phase["phase_index"] == index
+            and type(phase["items"]) is int
+            and phase["items"] == items,
             "phase5 phase identity drift",
         )
         require(
