@@ -614,6 +614,105 @@ class RetainedFullRunEvidenceRegressionTest(unittest.TestCase):
                     "phase5 CUDA activation flag drift",
                 )
 
+    def test_accelerator_observed_claims_require_boolean_true(self) -> None:
+        cases = (
+            (
+                "phase1/cuda-verify-100000.json",
+                retained.verify_phase1,
+                ("observed_topology", "accelerator_observed"),
+                "phase1 CUDA accelerator-observed claim drift",
+            ),
+            (
+                "phase1/static-verify-100000-40000.json",
+                retained.verify_phase1,
+                ("observed_topology", "accelerator_observed"),
+                "phase1 split accelerator-observed claim drift",
+            ),
+            (
+                "phase1/concurrent-verify-100000-40000.json",
+                retained.verify_phase1,
+                ("observed_topology", "accelerator_observed"),
+                "phase1 split accelerator-observed claim drift",
+            ),
+            (
+                "phase3/one-chunk.json",
+                retained.verify_phase3,
+                ("observed_topology", "accelerator_observed"),
+                "phase3 accelerator-observed claim drift",
+            ),
+            (
+                "phase3/multi-chunk.json",
+                retained.verify_phase3,
+                ("observed_topology", "accelerator_observed"),
+                "phase3 accelerator-observed claim drift",
+            ),
+            (
+                "phase4/timing.json",
+                retained.verify_phase4,
+                ("observed_topology", "accelerator_observed"),
+                "phase4 timing accelerator-observed claim drift",
+            ),
+            (
+                "phase4/calibration.json",
+                retained.verify_phase4,
+                ("observed_topology", "accelerator_observed"),
+                "phase4: calibration accelerator-observed claim drift",
+            ),
+            (
+                "phase5/adaptive.json",
+                retained.verify_phase5,
+                ("observed_topology", "accelerator_observed"),
+                "phase5 accelerator-observed claim drift",
+            ),
+            (
+                "phase5/adaptive.json",
+                retained.verify_phase5,
+                (
+                    "effective_execution",
+                    "phases",
+                    0,
+                    "calibration_receipt",
+                    "observed_topology",
+                    "accelerator_observed",
+                ),
+                "phase5 phase 0: calibration accelerator-observed claim drift",
+            ),
+        )
+        for relative, verifier, path, message in cases:
+            for value in (1, 1.0, "true"):
+                with self.subTest(relative=relative, path=path, value=value):
+                    def mutate(receipt: dict, *, path=path, value=value) -> None:
+                        node = receipt
+                        for key in path[:-1]:
+                            node = node[key]
+                        node[path[-1]] = value
+
+                    self._mutate_json_and_reject(
+                        relative,
+                        mutate,
+                        verifier,
+                        message,
+                    )
+
+    def test_concurrent_dispatch_contract_requires_boolean_fields(self) -> None:
+        cases = (
+            ("cpu_task_spawned_before_cuda_call", (1, 1.0, "true")),
+            ("cpu_joined_after_cuda_call_return", (1, 1.0, "true")),
+            ("kernel_overlap_measured", (0, 0.0, "false")),
+        )
+        for field, values in cases:
+            for value in values:
+                with self.subTest(field=field, value=value):
+                    def mutate(receipt: dict, *, field=field, value=value) -> None:
+                        receipt["effective_execution"]["dispatch_contract"][field] = value
+
+                    self._mutate_json_and_reject(
+                        "phase1/concurrent-verify-100000-40000.json",
+                        mutate,
+                        retained.verify_phase1,
+                        "phase1 concurrent dispatch Boolean evidence drift",
+                    )
+
     def test_phase1_cpu_topology_mutation(self) -> None:
         self._mutate_json_and_reject(
             "phase1/cpu-verify-100000.json",
