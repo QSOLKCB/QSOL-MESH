@@ -378,6 +378,59 @@ class RetainedFullRunEvidenceRegressionTest(unittest.TestCase):
                     message,
                 )
 
+    def test_calibration_effective_workers_match_deterministic_execution(self) -> None:
+        cases = (
+            (
+                1,
+                1,
+                "phase4 calibration candidate 1: CPU effective workers drift",
+            ),
+            (
+                3,
+                1,
+                "phase4 calibration candidate 3: heterogeneous effective workers drift",
+            ),
+        )
+        for candidate_id, value, message in cases:
+            with self.subTest(candidate_id=candidate_id):
+                def mutate(receipt: dict, *, candidate_id=candidate_id, value=value) -> None:
+                    observation = next(
+                        observation
+                        for observation in receipt["calibration"]["observations"]
+                        if observation["candidate_id"] == candidate_id
+                    )
+                    observation["effective_cpu_workers"] = value
+
+                self._mutate_json_and_reject(
+                    "phase4/calibration.json",
+                    mutate,
+                    retained.verify_phase4,
+                    message,
+                )
+
+    def test_accelerator_timing_components_stay_within_u64(self) -> None:
+        for field in ("setup_ns", "transfer_ns"):
+            with self.subTest(field=field):
+                def mutate(receipt: dict, *, field=field) -> None:
+                    observation = next(
+                        observation
+                        for observation in receipt["calibration"]["observations"]
+                        if observation["candidate_id"] == 2
+                    )
+                    observation[field] = retained.U64_MAX + 1
+                    observation["total_ns"] = (
+                        observation["service_ns"]
+                        + observation["setup_ns"]
+                        + observation["transfer_ns"]
+                    )
+
+                self._mutate_json_and_reject(
+                    "phase4/calibration.json",
+                    mutate,
+                    retained.verify_phase4,
+                    "phase4 calibration candidate 2: accelerator timing component width drift",
+                )
+
     def test_selected_worker_counts_reject_boolean_coercion(self) -> None:
         for field in (
             "selected_requested_cpu_workers",
@@ -424,16 +477,28 @@ class RetainedFullRunEvidenceRegressionTest(unittest.TestCase):
                     "phase5 phase 0: invalid execution_host_ns",
                 )
 
-    def test_phase5_outer_calibration_duration_covers_nested_measurement(self) -> None:
-        def mutate(receipt: dict) -> None:
-            receipt["effective_execution"]["phases"][0]["calibration_host_ns"] = 1
+    def test_phase5_outer_calibration_duration_covers_sequential_nested_measurements(self) -> None:
+        for mode in ("one-ns", "max-only"):
+            with self.subTest(mode=mode):
+                def mutate(receipt: dict, *, mode=mode) -> None:
+                    phase = receipt["effective_execution"]["phases"][0]
+                    nested = (
+                        phase["calibration_receipt"]["calibration"]["observations"]
+                        + phase["calibration_receipt"]["calibration"]["full_work_confirmation"]
+                    )
+                    if mode == "one-ns":
+                        phase["calibration_host_ns"] = 1
+                    else:
+                        phase["calibration_host_ns"] = max(
+                            observation["total_ns"] for observation in nested
+                        )
 
-        self._mutate_json_and_reject(
-            "phase5/adaptive.json",
-            mutate,
-            retained.verify_phase5,
-            "phase5 phase 0: calibration host duration shorter than nested measurement",
-        )
+                self._mutate_json_and_reject(
+                    "phase5/adaptive.json",
+                    mutate,
+                    retained.verify_phase5,
+                    "phase5 phase 0: calibration host duration shorter than sequential nested measurements",
+                )
 
     def test_phase4_calibration_candidate_geometry_mutation(self) -> None:
         def mutate(receipt: dict) -> None:
