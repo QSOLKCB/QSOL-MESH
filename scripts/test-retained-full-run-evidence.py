@@ -378,6 +378,52 @@ class RetainedFullRunEvidenceRegressionTest(unittest.TestCase):
                     message,
                 )
 
+    def test_selected_worker_counts_reject_boolean_coercion(self) -> None:
+        for field in (
+            "selected_requested_cpu_workers",
+            "selected_effective_cpu_workers",
+        ):
+            with self.subTest(field=field):
+                self._mutate_json_and_reject(
+                    "phase4/calibration.json",
+                    lambda receipt, field=field: receipt["effective_execution"].update(
+                        {field: True}
+                    ),
+                    retained.verify_phase4,
+                    "phase4: selected worker field types/bounds drift",
+                )
+
+    def test_phase5_execution_geometry_rejects_boolean_coercion(self) -> None:
+        for field in (
+            "requested_cpu_workers",
+            "effective_cpu_workers",
+            "cpu_items",
+            "cuda_items",
+        ):
+            with self.subTest(field=field):
+                def mutate(receipt: dict, *, field=field) -> None:
+                    receipt["effective_execution"]["phases"][0]["execution"][field] = True
+
+                self._mutate_json_and_reject(
+                    "phase5/adaptive.json",
+                    mutate,
+                    retained.verify_phase5,
+                    "phase5 execution geometry field types/bounds drift",
+                )
+
+    def test_phase5_execution_duration_must_be_positive_integer(self) -> None:
+        for value in (0, True):
+            with self.subTest(value=value):
+                def mutate(receipt: dict, *, value=value) -> None:
+                    receipt["effective_execution"]["phases"][0]["execution_host_ns"] = value
+
+                self._mutate_json_and_reject(
+                    "phase5/adaptive.json",
+                    mutate,
+                    retained.verify_phase5,
+                    "phase5 phase 0: invalid execution_host_ns",
+                )
+
     def test_phase5_outer_calibration_duration_covers_nested_measurement(self) -> None:
         def mutate(receipt: dict) -> None:
             receipt["effective_execution"]["phases"][0]["calibration_host_ns"] = 1
