@@ -11,6 +11,7 @@ SOURCE_COMMIT = "838e725f687888f55000f045b4a6846a46b10413"
 FULL_CHECKSUM = "9d390352e9b7d24c"
 CPU_40K_CHECKSUM = "5adf225493d7a5bf"
 CUDA_60K_CHECKSUM = "4259e0fe55e02c8d"
+U128_MAX = (1 << 128) - 1
 U64_MAX = (1 << 64) - 1
 U32_MAX = (1 << 32) - 1
 SMOKE_SEED = 0x4D45_5348_5F53_4D4B
@@ -160,9 +161,32 @@ def verify_phase1() -> None:
 
     require(cpu["schema"] == "qsol.mesh.smoke-receipt.v1", "phase1 CPU schema drift")
     require(
+        cpu["source_identity"]
+        == {
+            "runtime": "qsol-mesh-cli",
+            "mesh_contract_schema": "qsol.mesh.contract.v1",
+            "mesh_contract_version": "1.0.0",
+        },
+        "phase1 CPU source identity drift",
+    )
+    require(
+        cpu["workload_identity"]
+        == {"workload_id": "mesh-smoke-v1", "workload_contract_version": "1.0.0"},
+        "phase1 CPU workload identity drift",
+    )
+    require(
         cpu["requested_configuration"]
         == {"command": "verify", "items": 100000, "workers": 8},
         "phase1 CPU request drift",
+    )
+    require(
+        cpu["effective_execution"]
+        == {
+            "backend": "cpu",
+            "workers": 8,
+            "reduction": "worker-index-order-wrapping-u64",
+        },
+        "phase1 CPU effective execution drift",
     )
     require(
         cpu["verification"]
@@ -179,21 +203,66 @@ def verify_phase1() -> None:
         cuda["schema"] == "qsol.mesh.cuda-smoke-receipt.v1",
         "phase1 CUDA schema drift",
     )
-    require(cuda["requested_configuration"]["command"] == "verify", "phase1 CUDA activation drift")
-    require(cuda["requested_configuration"]["items"] == 100000, "phase1 CUDA item count drift")
-    require(cuda["requested_configuration"]["device_ordinal"] == 0, "phase1 CUDA device drift")
+    require(
+        cuda["source_identity"]
+        == {
+            "runtime": "qsol-mesh-cli",
+            "executor_id": "qsol-mesh-cuda-smoke-v1",
+            "worker_protocol": "qsol.mesh.cuda-smoke-worker.v1",
+        },
+        "phase1 CUDA source identity drift",
+    )
+    require(
+        cuda["workload_identity"]
+        == {"workload_id": "mesh-smoke-v1", "workload_contract_version": "1.0.0"},
+        "phase1 CUDA workload identity drift",
+    )
+    require(
+        cuda["requested_configuration"]
+        == {
+            "command": "verify",
+            "items": 100000,
+            "device_ordinal": 0,
+            "helper_path": "/home/trent/qsolmesh-dev/QSOL-MESH/target/mesh-cuda-smoke",
+        },
+        "phase1 CUDA request drift",
+    )
     topo = cuda["observed_topology"]
     require(
-        topo["accelerator_observed"] is True
-        and topo["compute_major"] == 12
-        and topo["compute_minor"] == 0,
+        topo
+        == {
+            "accelerator_observed": True,
+            "backend": "nvidia-cuda",
+            "device_ordinal": 0,
+            "compute_major": 12,
+            "compute_minor": 0,
+            "cuda_runtime_version": 12040,
+            "cuda_driver_version": 13020,
+            "evidence_source": "cuda-helper-process",
+        },
         "phase1 CUDA topology drift",
     )
+    effective = cuda["effective_execution"]
     require(
-        topo["cuda_runtime_version"] == 12040
-        and topo["cuda_driver_version"] == 13020,
-        "phase1 CUDA version drift",
+        effective["backend"] == "nvidia-cuda"
+        and effective["device_ordinal"] == cuda["requested_configuration"]["device_ordinal"]
+        and type(effective["blocks"]) is int
+        and effective["blocks"] > 0
+        and type(effective["threads_per_block"]) is int
+        and effective["threads_per_block"] > 0
+        and effective["reduction"] == "device-strided-local-sums-plus-atomicAdd-u64",
+        "phase1 CUDA effective execution drift",
     )
+    require(
+        cuda["memory_plan"]
+        == {
+            "domains": ["accelerator-local", "host-pageable"],
+            "accelerator_checksum_buffer_bytes": 8,
+            "per_item_materialization": False,
+        },
+        "phase1 CUDA memory plan drift",
+    )
+    require(cuda["calibration"] == {"performed": False}, "phase1 CUDA calibration drift")
     require(
         cuda["verification"]["verified"] is True
         and cuda["verification"]["checksum"] == FULL_CHECKSUM
@@ -286,6 +355,7 @@ def verify_phase1() -> None:
     verify_environment("phase1/environment.txt")
 
 
+
 def verify_stream_receipt(
     receipt: dict,
     *,
@@ -293,18 +363,50 @@ def verify_stream_receipt(
     expected_checksum: str,
 ) -> None:
     require(
+        REQUIRED_RECEIPT_SECTIONS <= receipt.keys(),
+        "phase3 stream receipt missing common evidence sections",
+    )
+    require(
         receipt["schema"] == "qsol.mesh.cuda-stream-receipt.v1",
         "phase3 stream schema drift",
+    )
+    require(
+        receipt["source_identity"]
+        == {
+            "runtime": "qsol-mesh-cli",
+            "worker_protocol": "qsol.mesh.cuda-stream-worker.v1",
+            "helper_resolution": "application-target-directory/mesh-cuda-stream",
+        },
+        "phase3 stream source identity drift",
+    )
+    require(
+        receipt["workload_identity"]
+        == {
+            "workload_id": "mesh-smoke-stream-v1",
+            "workload_contract_version": "1.0.0",
+        },
+        "phase3 stream workload identity drift",
     )
     request = receipt["requested_configuration"]
     require(request == expected_request, "phase3 stream request drift")
     require(
-        receipt["observed_topology"]["accelerator_observed"] is True,
-        "phase3 accelerator observation missing",
+        receipt["observed_topology"]
+        == {
+            "accelerator_observed": True,
+            "device_ordinal": request["device_ordinal"],
+            "compute_major": 12,
+            "compute_minor": 0,
+            "cuda_runtime_version": 12040,
+            "cuda_driver_version": 13020,
+            "evidence_source": "cuda-helper-process",
+        },
+        "phase3 observed CUDA topology drift",
     )
+    require(receipt["calibration"] == {"performed": False}, "phase3 calibration drift")
     require(
-        receipt["observed_topology"]["device_ordinal"] == request["device_ordinal"],
-        "phase3 observed CUDA device drift",
+        receipt["claim_boundary"]
+        == "helper-reported-physical-cuda-streaming-and-scalar-parity-not-independent-hardware-attestation",
+        "phase3 claim boundary drift",
     )
 
     items = request["items"]
@@ -376,6 +478,7 @@ def verify_stream_receipt(
     )
 
 
+
 def verify_phase3() -> None:
     multi = load_json("phase3/multi-chunk.json")
     single = load_json("phase3/one-chunk.json")
@@ -406,6 +509,94 @@ def verify_phase3() -> None:
     verify_environment("phase3/environment.txt")
 
 
+def materially_faster(candidate_ns: int, canonical_ns: int, near_tie_bps: int) -> bool:
+    require(
+        type(candidate_ns) is int and type(canonical_ns) is int,
+        "calibration cost comparison requires integers",
+    )
+    require(
+        0 <= candidate_ns <= U128_MAX and 0 <= canonical_ns <= U128_MAX,
+        "calibration cost comparison exceeds u128",
+    )
+    require(
+        type(near_tie_bps) is int and 0 <= near_tie_bps < 10_000,
+        "calibration near-tie basis points out of range",
+    )
+    if candidate_ns >= canonical_ns:
+        return False
+    improvement = canonical_ns - candidate_ns
+    lhs = improvement * 10_000
+    rhs = canonical_ns * near_tie_bps
+    require(lhs <= U128_MAX and rhs <= U128_MAX, "near-tie arithmetic overflow")
+    return lhs > rhs
+
+
+def validate_cost_observation(
+    observation: dict,
+    *,
+    candidate: dict,
+    work_units: int,
+    context: str,
+) -> None:
+    require(
+        observation["candidate_id"] == candidate["id"],
+        f"{context}: observation candidate drift",
+    )
+    require(
+        observation["work_units"] == work_units,
+        f"{context}: observation work size drift",
+    )
+    for field in ("service_ns", "setup_ns", "transfer_ns", "total_ns"):
+        require(
+            type(observation[field]) is int and 0 <= observation[field] <= U128_MAX,
+            f"{context}: invalid {field}",
+        )
+    total = (
+        observation["service_ns"]
+        + observation["setup_ns"]
+        + observation["transfer_ns"]
+    )
+    require(total <= U128_MAX, f"{context}: calibration cost arithmetic overflow")
+    require(
+        observation["total_ns"] == total,
+        f"{context}: calibration total cost drift",
+    )
+    require(observation["verified"] is True, f"{context}: unverified observation")
+    require(
+        observation["checksum"] == smoke_reference(work_units),
+        f"{context}: observation disagrees with scalar oracle",
+    )
+
+    backend = candidate["backend"]
+    effective_workers = observation["effective_cpu_workers"]
+    require(
+        type(effective_workers) is int and effective_workers >= 0,
+        f"{context}: invalid effective CPU worker count",
+    )
+    if backend == "cpu":
+        require(
+            observation["setup_ns"] == 0 and observation["transfer_ns"] == 0,
+            f"{context}: CPU observation has separate setup/transfer cost",
+        )
+        require(
+            1 <= effective_workers <= candidate["cpu_workers"]
+            and effective_workers <= work_units,
+            f"{context}: CPU effective workers exceed candidate/work",
+        )
+    elif backend == "accelerator":
+        require(
+            effective_workers == 0,
+            f"{context}: accelerator observation reports CPU workers",
+        )
+    elif backend == "heterogeneous-static":
+        require(
+            1 <= effective_workers <= candidate["cpu_workers"],
+            f"{context}: heterogeneous effective workers exceed candidate",
+        )
+    else:
+        raise SystemExit(f"{context}: unknown candidate backend")
+
+
 def verify_calibration_receipt(
     receipt: dict,
     *,
@@ -413,9 +604,36 @@ def verify_calibration_receipt(
     context: str,
 ) -> None:
     require(
+        REQUIRED_RECEIPT_SECTIONS <= receipt.keys(),
+        f"{context}: calibration receipt missing common evidence sections",
+    )
+    require(
         receipt["schema"] == "qsol.mesh.calibrated-plan-receipt.v2",
         f"{context}: calibration schema drift",
     )
+    require(
+        receipt["source_identity"]
+        == {
+            "runtime": "qsol-mesh-cli",
+            "plan_identity": "mesh-calibration-smoke-v1",
+            "plan_version": "2.0.0",
+        },
+        f"{context}: calibration source identity drift",
+    )
+    require(
+        receipt["workload_identity"] == {"workload_id": "mesh-smoke-v1"},
+        f"{context}: calibration workload identity drift",
+    )
+    require(
+        receipt["memory_plan"] == {"physical_memory_claim": False},
+        f"{context}: calibration memory claim drift",
+    )
+    require(
+        receipt["claim_boundary"]
+        == "host-specific-helper-reported-CUDA-calibration-not-universal-performance-or-kernel-overlap-evidence",
+        f"{context}: calibration claim boundary drift",
+    )
+
     request = receipt["requested_configuration"]
     require(request == expected_request, f"{context}: calibration request drift")
     require(
@@ -441,91 +659,172 @@ def verify_calibration_receipt(
         f"{context}: calibration verification drift",
     )
 
+    topology = receipt["observed_topology"]
+    require(
+        topology
+        == {
+            "available_cpu_workers": 32,
+            "device_ordinal": request["device_ordinal"],
+            "accelerator_observed": True,
+            "cuda_compute_major": 12,
+            "cuda_compute_minor": 0,
+            "cuda_runtime_version": 12040,
+            "cuda_driver_version": 13020,
+            "cuda_topology_source": "canonical-helper-reported",
+        },
+        f"{context}: CUDA calibration topology/identity drift",
+    )
+
     calibration = receipt["calibration"]
     candidates = calibration["candidates"]
     observations = calibration["observations"]
+    expected_candidates = [
+        {
+            "id": 0,
+            "backend": "cpu",
+            "cpu_workers": 1,
+            "accelerator_share_bps": 0,
+            "canonical": True,
+        },
+        {
+            "id": 1,
+            "backend": "cpu",
+            "cpu_workers": topology["available_cpu_workers"],
+            "accelerator_share_bps": 0,
+            "canonical": False,
+        },
+        {
+            "id": 2,
+            "backend": "accelerator",
+            "cpu_workers": 0,
+            "accelerator_share_bps": 10_000,
+            "canonical": False,
+        },
+        {
+            "id": 3,
+            "backend": "heterogeneous-static",
+            "cpu_workers": topology["available_cpu_workers"],
+            "accelerator_share_bps": 5_000,
+            "canonical": False,
+        },
+    ]
     require(
-        calibration["candidate_budget"] == 4 and len(candidates) == 4,
-        f"{context}: candidate budget drift",
+        calibration["candidate_budget"] == 4 and candidates == expected_candidates,
+        f"{context}: calibration candidate geometry drift",
     )
     require(
-        [candidate["id"] for candidate in candidates] == [0, 1, 2, 3],
-        f"{context}: candidate ID set drift",
+        calibration["cost_scopes"]
+        == {
+            "cpu": "run_smoke-end-to-end",
+            "accelerator": "median-sample-launcher-plus-verification-host-wall-partitioned-by-nested-setup-and-D2H",
+            "heterogeneous-static": "full-static-call-end-to-end",
+        },
+        f"{context}: calibration cost scope drift",
     )
-    require(
-        [candidate["backend"] for candidate in candidates]
-        == ["cpu", "cpu", "accelerator", "heterogeneous-static"],
-        f"{context}: candidate backend set drift",
-    )
-    require(
-        [candidate["canonical"] for candidate in candidates] == [True, False, False, False],
-        f"{context}: canonical candidate drift",
-    )
-
-    candidate_ids = {candidate["id"] for candidate in candidates}
-    observation_ids = [observation["candidate_id"] for observation in observations]
-    require(
-        len(observations) == len(candidates)
-        and len(set(observation_ids)) == len(observation_ids)
-        and set(observation_ids) == candidate_ids,
-        f"{context}: observations do not cover every candidate exactly once",
-    )
-    for observation in observations:
-        work_units = observation["work_units"]
-        require(
-            work_units == request["calibration_items"],
-            f"{context}: calibration observation work size drift",
-        )
-        require(
-            observation["verified"] is True,
-            f"{context}: unverified calibration observation",
-        )
-        require(
-            observation["checksum"] == smoke_reference(work_units),
-            f"{context}: calibration observation disagrees with scalar oracle",
-        )
-
     require(
         calibration["cross_clock_kernel_timing_added"] is False,
         f"{context}: CUDA event timing became additive",
     )
 
+    candidate_by_id = {candidate["id"]: candidate for candidate in candidates}
+    observation_ids = [observation["candidate_id"] for observation in observations]
+    require(
+        len(observations) == len(candidates)
+        and len(set(observation_ids)) == len(observation_ids)
+        and set(observation_ids) == set(candidate_by_id),
+        f"{context}: observations do not cover every candidate exactly once",
+    )
+    for observation in observations:
+        validate_cost_observation(
+            observation,
+            candidate=candidate_by_id[observation["candidate_id"]],
+            work_units=request["calibration_items"],
+            context=f"{context} calibration candidate {observation['candidate_id']}",
+        )
+
+    calibration_by_id = {
+        observation["candidate_id"]: observation for observation in observations
+    }
+    canonical_id = 0
+    calibration_winner = min(
+        candidate_by_id,
+        key=lambda candidate_id: (
+            calibration_by_id[candidate_id]["total_ns"],
+            candidate_id,
+        ),
+    )
+    canonical_calibration = calibration_by_id[canonical_id]
+    winner_calibration = calibration_by_id[calibration_winner]
+    if calibration_winner == canonical_id or not materially_faster(
+        winner_calibration["total_ns"],
+        canonical_calibration["total_ns"],
+        request["near_tie_bps"],
+    ):
+        provisional = canonical_id
+    else:
+        provisional = calibration_winner
+
+    required_confirmation_ids = (
+        [canonical_id] if provisional == canonical_id else [canonical_id, provisional]
+    )
+    confirmation = calibration["full_work_confirmation"]
+    confirmation_ids = [observation["candidate_id"] for observation in confirmation]
+    require(
+        len(confirmation) == len(required_confirmation_ids)
+        and len(set(confirmation_ids)) == len(confirmation_ids)
+        and set(confirmation_ids) == set(required_confirmation_ids),
+        f"{context}: full-work confirmation candidate coverage drift",
+    )
+    for observation in confirmation:
+        validate_cost_observation(
+            observation,
+            candidate=candidate_by_id[observation["candidate_id"]],
+            work_units=request["full_work_items"],
+            context=f"{context} confirmation candidate {observation['candidate_id']}",
+        )
+    confirmation_by_id = {
+        observation["candidate_id"]: observation for observation in confirmation
+    }
+
+    if provisional == canonical_id:
+        selected = canonical_id
+        selection_reason = "canonical-kept-after-calibration-near-tie"
+    else:
+        canonical_full = confirmation_by_id[canonical_id]
+        provisional_full = confirmation_by_id[provisional]
+        if materially_faster(
+            provisional_full["total_ns"],
+            canonical_full["total_ns"],
+            request["near_tie_bps"],
+        ):
+            selected = provisional
+            selection_reason = "promoted-after-full-work-confirmation"
+        else:
+            selected = canonical_id
+            selection_reason = "canonical-restored-after-full-work-near-tie"
+
     effective = receipt["effective_execution"]
     require(
-        effective["selected_candidate_id"] in candidate_ids
-        and effective["canonical_candidate_id"] in candidate_ids,
-        f"{context}: selected/canonical candidate is outside candidate set",
+        effective["kind"] == "calibration-and-planning",
+        f"{context}: calibration effective kind drift",
     )
     require(
-        effective["selected_candidate_id"] == 0
-        and effective["canonical_candidate_id"] == 0
-        and effective["canonical_retained"] is True,
-        f"{context}: selected candidate drift",
+        effective["provisional_candidate_id"] == provisional
+        and effective["selected_candidate_id"] == selected
+        and effective["canonical_candidate_id"] == canonical_id
+        and effective["canonical_retained"] is (selected == canonical_id)
+        and effective["selection_reason"] == selection_reason,
+        f"{context}: measured selection history drift",
     )
+    selected_candidate = candidate_by_id[selected]
+    selected_confirmation = confirmation_by_id[selected]
     require(
-        effective["selection_reason"] == "canonical-kept-after-calibration-near-tie",
-        f"{context}: selection reason drift",
+        effective["selected_requested_cpu_workers"] == selected_candidate["cpu_workers"]
+        and effective["selected_effective_cpu_workers"]
+        == selected_confirmation["effective_cpu_workers"],
+        f"{context}: selected worker evidence drift",
     )
 
-    confirmation = calibration["full_work_confirmation"]
-    require(
-        len(confirmation) == 1,
-        f"{context}: full-work confirmation cardinality drift",
-    )
-    confirmed = confirmation[0]
-    require(
-        confirmed["candidate_id"] == effective["selected_candidate_id"],
-        f"{context}: full-work confirmation candidate drift",
-    )
-    require(
-        confirmed["work_units"] == request["full_work_items"],
-        f"{context}: full-work confirmation size drift",
-    )
-    require(
-        confirmed["verified"] is True
-        and confirmed["checksum"] == smoke_reference(confirmed["work_units"]),
-        f"{context}: full-work confirmation disagrees with scalar oracle",
-    )
 
 
 def verify_phase4() -> None:
@@ -611,6 +910,51 @@ def verify_phase5() -> None:
         receipt["schema"] == "qsol.mesh.phase-runtime-receipt.v1",
         "phase5 schema drift",
     )
+    require(
+        receipt["source_identity"]
+        == {"runtime": "qsol-mesh-cli", "contract": "qsol.mesh.phase-runtime-contract.v1"},
+        "phase5 source identity drift",
+    )
+    require(
+        receipt["workload_identity"]
+        == {"workload_id": "mesh-smoke-phases-v1", "workload_contract_version": "1.0.0"},
+        "phase5 workload identity drift",
+    )
+    require(
+        receipt["observed_topology"]
+        == {
+            "available_cpu_workers": 32,
+            "accelerator_observed": True,
+            "details": "per-phase-calibration-receipts",
+        },
+        "phase5 observed topology drift",
+    )
+    require(
+        receipt["memory_plan"]
+        == {
+            "per_item_materialization": False,
+            "phase_state_bound": 64,
+            "persistent_cuda_context": False,
+        },
+        "phase5 memory/lifecycle claim drift",
+    )
+    require(
+        receipt["calibration"]
+        == {
+            "performed_before_every_phase": True,
+            "candidate_budget_per_phase": 4,
+            "cached": False,
+            "calibration_host_scope": "calibrator-call-plus-plan-validation",
+            "execution_host_scope": "selected-executor-call-plus-phase-oracle-validation",
+        },
+        "phase5 calibration boundary drift",
+    )
+    require(
+        receipt["claim_boundary"]
+        == "bounded-phase-boundary-replanning-only-not-work-stealing-kernel-overlap-or-universal-speedup",
+        "phase5 claim boundary drift",
+    )
+
     request = receipt["requested_configuration"]
     expected_request = {
         "command": "verify",
@@ -630,7 +974,10 @@ def verify_phase5() -> None:
     require(
         type(request["calibration_items"]) is int
         and request["calibration_items"] >= minimum_items
-        and all(type(items) is int and items >= minimum_items for items in request["phase_items"]),
+        and all(
+            type(items) is int and items >= minimum_items
+            for items in request["phase_items"]
+        ),
         "phase5 phase/calibration item bound drift",
     )
     require(
@@ -638,7 +985,8 @@ def verify_phase5() -> None:
         "phase5 repeats bound drift",
     )
     require(
-        type(request["near_tie_bps"]) is int and 0 <= request["near_tie_bps"] <= 9999,
+        type(request["near_tie_bps"]) is int
+        and 0 <= request["near_tie_bps"] <= 9999,
         "phase5 near-tie bound drift",
     )
     require(
@@ -650,6 +998,10 @@ def verify_phase5() -> None:
     require(total_phase_items <= U64_MAX, "phase5 total phase items overflow u64")
 
     effective = receipt["effective_execution"]
+    require(
+        effective["kind"] == "phase-boundary-replanning-and-execution",
+        "phase5 effective execution kind drift",
+    )
     expected = [
         (0, 1000, "d3886842145b489c"),
         (1, 100000, FULL_CHECKSUM),
@@ -668,17 +1020,24 @@ def verify_phase5() -> None:
     )
 
     observed_plan_changes = 0
+    previous_selected = None
+    phase_checksums = []
     for phase, (index, items, checksum) in zip(effective["phases"], expected):
         require(
-            phase["phase_index"] == index
-            and phase["items"] == items
-            and phase["plan_changed"] is False,
+            phase["phase_index"] == index and phase["items"] == items,
             "phase5 phase identity drift",
         )
-        observed_plan_changes += int(phase["plan_changed"])
+        for timing_field in ("calibration_host_ns", "execution_host_ns"):
+            require(
+                type(phase[timing_field]) is int
+                and 0 <= phase[timing_field] <= U128_MAX,
+                f"phase5 phase {index}: invalid {timing_field}",
+            )
+
         expected_calibration_items = min(request["calibration_items"], items)
+        calibration_receipt = phase["calibration_receipt"]
         verify_calibration_receipt(
-            phase["calibration_receipt"],
+            calibration_receipt,
             expected_request={
                 "calibration_items": expected_calibration_items,
                 "full_work_items": items,
@@ -688,6 +1047,15 @@ def verify_phase5() -> None:
             },
             context=f"phase5 phase {index}",
         )
+        selected = calibration_receipt["effective_execution"]["selected_candidate_id"]
+        expected_plan_changed = previous_selected is not None and selected != previous_selected
+        require(
+            phase["plan_changed"] is expected_plan_changed,
+            "phase5 per-phase plan change flag drift",
+        )
+        observed_plan_changes += int(expected_plan_changed)
+        previous_selected = selected
+
         execution = phase["execution"]
         require(
             execution["backend"] == "cpu"
@@ -704,21 +1072,26 @@ def verify_phase5() -> None:
             and execution["checksum"] == smoke_reference(items),
             "phase5 phase oracle drift",
         )
+        phase_checksums.append(int(execution["checksum"], 16))
+
     require(
         observed_plan_changes == effective["plan_changes"],
         "phase5 plan change count drift",
     )
+    aggregate = sum(phase_checksums) & U64_MAX
+    aggregate_hex = f"{aggregate:016x}"
     require(
         receipt["verification"]
         == {
             "kind": "per-phase-scalar-oracle-and-phase-order-wrapping-u64",
-            "checksum": "edb20cb973a5c7e7",
-            "reference": "edb20cb973a5c7e7",
+            "checksum": aggregate_hex,
+            "reference": aggregate_hex,
             "verified": True,
         },
         "phase5 aggregate verification drift",
     )
     verify_environment("phase5/environment.txt")
+
 
 
 def main() -> None:
