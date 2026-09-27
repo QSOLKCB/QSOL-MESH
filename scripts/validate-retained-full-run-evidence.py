@@ -328,6 +328,11 @@ def verify_phase1() -> None:
     )
     cuda_request = cuda["requested_configuration"]
     require(
+        type(cuda_request.get("items")) is int
+        and 0 < cuda_request["items"] <= U64_MAX,
+        "phase1 CUDA requested items drift",
+    )
+    require(
         type(cuda_request.get("device_ordinal")) is int
         and 0 <= cuda_request["device_ordinal"] <= U32_MAX,
         "phase1 CUDA requested device ordinal drift",
@@ -1158,6 +1163,11 @@ def verify_phase4() -> None:
         "phase4 timing schema drift",
     )
     timing_request = timing["requested_configuration"]
+    require(
+        type(timing_request.get("items")) is int
+        and 0 < timing_request["items"] <= U64_MAX,
+        "phase4 timing requested items drift",
+    )
     require(
         type(timing_request.get("device_ordinal")) is int
         and 0 <= timing_request["device_ordinal"] <= U32_MAX,
