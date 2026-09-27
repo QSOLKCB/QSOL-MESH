@@ -308,8 +308,14 @@ def verify_phase1() -> None:
         == {"workload_id": "mesh-smoke-v1", "workload_contract_version": "1.0.0"},
         "phase1 CUDA workload identity drift",
     )
+    cuda_request = cuda["requested_configuration"]
     require(
-        cuda["requested_configuration"]
+        type(cuda_request.get("device_ordinal")) is int
+        and 0 <= cuda_request["device_ordinal"] <= U32_MAX,
+        "phase1 CUDA requested device ordinal drift",
+    )
+    require(
+        cuda_request
         == {
             "command": "verify",
             "items": 100000,
@@ -319,6 +325,11 @@ def verify_phase1() -> None:
         "phase1 CUDA request drift",
     )
     topo = cuda["observed_topology"]
+    require(
+        type(topo.get("device_ordinal")) is int
+        and 0 <= topo["device_ordinal"] <= U32_MAX,
+        "phase1 CUDA observed device ordinal drift",
+    )
     require(
         topo
         == {
@@ -335,8 +346,13 @@ def verify_phase1() -> None:
     )
     effective = cuda["effective_execution"]
     require(
+        type(effective.get("device_ordinal")) is int
+        and 0 <= effective["device_ordinal"] <= U32_MAX,
+        "phase1 CUDA effective device ordinal drift",
+    )
+    require(
         effective["backend"] == "nvidia-cuda"
-        and effective["device_ordinal"] == cuda["requested_configuration"]["device_ordinal"]
+        and effective["device_ordinal"] == cuda_request["device_ordinal"]
         and type(effective["blocks"]) is int
         and effective["blocks"] == CUDA_RETAINED_BLOCKS
         and type(effective["threads_per_block"]) is int
@@ -1119,8 +1135,14 @@ def verify_phase4() -> None:
         timing["schema"] == "qsol.mesh.cuda-smoke-receipt.v2",
         "phase4 timing schema drift",
     )
+    timing_request = timing["requested_configuration"]
     require(
-        timing["requested_configuration"]
+        type(timing_request.get("device_ordinal")) is int
+        and 0 <= timing_request["device_ordinal"] <= U32_MAX,
+        "phase4 timing requested device ordinal drift",
+    )
+    require(
+        timing_request
         == {
             "command": "verify",
             "items": 100000,
@@ -1147,11 +1169,16 @@ def verify_phase4() -> None:
     )
     timing_topology = timing["observed_topology"]
     require(
+        type(timing_topology.get("device_ordinal")) is int
+        and 0 <= timing_topology["device_ordinal"] <= U32_MAX,
+        "phase4 timing observed device ordinal drift",
+    )
+    require(
         timing_topology
         == {
             "accelerator_observed": True,
             "backend": "nvidia-cuda",
-            "device_ordinal": timing["requested_configuration"]["device_ordinal"],
+            "device_ordinal": timing_request["device_ordinal"],
             "compute_major": 12,
             "compute_minor": 0,
             "cuda_runtime_version": 12040,
@@ -1162,9 +1189,13 @@ def verify_phase4() -> None:
     )
     timing_effective = timing["effective_execution"]
     require(
+        type(timing_effective.get("device_ordinal")) is int
+        and 0 <= timing_effective["device_ordinal"] <= U32_MAX,
+        "phase4 timing effective device ordinal drift",
+    )
+    require(
         timing_effective["backend"] == "nvidia-cuda"
-        and timing_effective["device_ordinal"]
-        == timing["requested_configuration"]["device_ordinal"]
+        and timing_effective["device_ordinal"] == timing_request["device_ordinal"]
         and type(timing_effective["blocks"]) is int
         and timing_effective["blocks"] == CUDA_RETAINED_BLOCKS
         and type(timing_effective["threads_per_block"]) is int
