@@ -206,7 +206,9 @@ class RetainedFullRunEvidenceRegressionTest(unittest.TestCase):
                         relative,
                         mutate,
                         verifier,
-                        message + "|request drift|topology drift|effective execution drift",
+                        message
+                        + "|request drift|topology drift|effective execution drift"
+                        + "|effective CUDA execution drift",
                     )
 
     def test_cuda_launch_geometry_rejects_overflow_and_booleans(self) -> None:
