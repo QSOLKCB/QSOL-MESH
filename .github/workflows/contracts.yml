@@ -27,6 +27,8 @@ jobs:
         run: python3 scripts/test-retained-phase5-evidence.py
       - name: Validate retained full CUDA-host evidence
         run: python3 scripts/validate-retained-full-run-evidence.py
+      - name: Test retained full-run validator regressions
+        run: python3 scripts/test-retained-full-run-evidence.py
       - name: Validate CUDA build script syntax
         run: bash -n scripts/capture-phase5-adaptive.sh scripts/capture-phase4-cuda-calibration.sh scripts/build-cuda-helper.sh scripts/build-cuda-stream-helper.sh scripts/capture-phase3-cuda-stream.sh
       - name: Verify selected CUDA compiler provenance
