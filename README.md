@@ -328,3 +328,9 @@ do not claim Phase 5 hardware execution. A separate Phase 5 capture is now
 retained under `evidence/phase5-cuda-host-2026-09-23/`: every phase measured CUDA
 candidates and selected CPU execution, with zero plan changes. Its local capture
 script is `scripts/capture-phase5-adaptive.sh`. See `PHASE-RUNTIME.md`.
+
+### Retained full-chain CUDA-host evidence
+
+A fresh full-chain hardware capture from source commit `838e725f687888f55000f045b4a6846a46b10413` is retained under `evidence/full-cuda-host-2026-09-27/`. It covers CPU and single-device CUDA parity, fixed sequential and concurrent CPU/CUDA execution, bounded physical CUDA streaming, separated timing and CUDA-aware calibration, and the three-phase bounded runtime. Every retained execution receipt is verified; the Phase 4 and Phase 5 planners retained the canonical one-worker CPU candidate on this host.
+
+The bundle is integrity-pinned and semantically validated by `scripts/validate-retained-full-run-evidence.py` in normal CI. It remains host-specific evidence and does not claim universal speedup, independently attested GPU telemetry, cryptographic host attestation, or measured CUDA-kernel/CPU-compute overlap.
