@@ -758,24 +758,30 @@ def validate_cost_observation(
             observation["setup_ns"] == 0 and observation["transfer_ns"] == 0,
             f"{context}: CPU observation has separate setup/transfer cost",
         )
+        expected_effective_workers = min(candidate["cpu_workers"], work_units)
         require(
-            1 <= effective_workers <= candidate["cpu_workers"]
-            and effective_workers <= work_units,
-            f"{context}: CPU effective workers exceed candidate/work",
+            effective_workers == expected_effective_workers,
+            f"{context}: CPU effective workers drift",
         )
     elif backend == "accelerator":
         require(
             effective_workers == 0,
             f"{context}: accelerator observation reports CPU workers",
         )
+        require(
+            observation["setup_ns"] <= U64_MAX
+            and observation["transfer_ns"] <= U64_MAX,
+            f"{context}: accelerator timing component width drift",
+        )
     elif backend == "heterogeneous-static":
         require(
             observation["setup_ns"] == 0 and observation["transfer_ns"] == 0,
             f"{context}: heterogeneous observation has separately isolated setup/transfer cost",
         )
+        expected_effective_workers = min(candidate["cpu_workers"], work_units // 2)
         require(
-            1 <= effective_workers <= candidate["cpu_workers"],
-            f"{context}: heterogeneous effective workers exceed candidate",
+            effective_workers == expected_effective_workers,
+            f"{context}: heterogeneous effective workers drift",
         )
     else:
         raise SystemExit(f"{context}: unknown candidate backend")
@@ -1386,8 +1392,9 @@ def verify_phase5() -> None:
         ]
         require(
             nested_totals
-            and phase["calibration_host_ns"] >= max(nested_totals),
-            f"phase5 phase {index}: calibration host duration shorter than nested measurement",
+            and sum(nested_totals) <= U128_MAX
+            and phase["calibration_host_ns"] >= sum(nested_totals),
+            f"phase5 phase {index}: calibration host duration shorter than sequential nested measurements",
         )
         selected_id = calibration_receipt["effective_execution"]["selected_candidate_id"]
         selected_candidate = next(
