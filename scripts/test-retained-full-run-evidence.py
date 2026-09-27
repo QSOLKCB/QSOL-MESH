@@ -390,6 +390,67 @@ class RetainedFullRunEvidenceRegressionTest(unittest.TestCase):
                     "phase3 stream request drift|phase3 invalid retained stream bounds",
                 )
 
+    def test_split_cuda_ordinals_require_exact_u32_identity(self) -> None:
+        cases = (
+            (
+                ("observed_topology", "cuda_device_ordinal"),
+                "phase1 split observed CUDA device ordinal drift",
+            ),
+            (
+                ("effective_execution", "cuda", "device_ordinal"),
+                "phase1 split effective CUDA device ordinal drift",
+            ),
+        )
+        for relative in (
+            "phase1/static-verify-100000-40000.json",
+            "phase1/concurrent-verify-100000-40000.json",
+        ):
+            for path, message in cases:
+                for value in (False, 0.0, 1):
+                    with self.subTest(relative=relative, path=path, value=value):
+                        def mutate(receipt: dict, *, path=path, value=value) -> None:
+                            node = receipt
+                            for key in path[:-1]:
+                                node = node[key]
+                            node[path[-1]] = value
+
+                        self._mutate_json_and_reject(
+                            relative,
+                            mutate,
+                            retained.verify_phase1,
+                            message + "|phase1 split observed/effective CUDA device drift|phase1 split CUDA device drift",
+                        )
+
+    def test_phase1_cpu_request_geometry_requires_exact_integers(self) -> None:
+        for field, value in (
+            ("items", 100000.0),
+            ("items", True),
+            ("workers", 8.0),
+            ("workers", True),
+        ):
+            with self.subTest(field=field, value=value):
+                self._mutate_json_and_reject(
+                    "phase1/cpu-verify-100000.json",
+                    lambda receipt, field=field, value=value: receipt["requested_configuration"].update(
+                        {field: value}
+                    ),
+                    retained.verify_phase1,
+                    "phase1 CPU request numeric field drift",
+                )
+
+    def test_phase3_verified_status_requires_boolean_true(self) -> None:
+        for relative in ("phase3/one-chunk.json", "phase3/multi-chunk.json"):
+            for value in (1, 1.0, "true"):
+                with self.subTest(relative=relative, value=value):
+                    self._mutate_json_and_reject(
+                        relative,
+                        lambda receipt, value=value: receipt["verification"].update(
+                            verified=value
+                        ),
+                        retained.verify_phase3,
+                        "phase3 verified status drift",
+                    )
+
     def test_phase1_cpu_topology_mutation(self) -> None:
         self._mutate_json_and_reject(
             "phase1/cpu-verify-100000.json",
