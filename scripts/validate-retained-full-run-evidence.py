@@ -92,7 +92,20 @@ def verify_hashes() -> None:
 
 def verify_environment(relative: str) -> None:
     text = (EVIDENCE / relative).read_text(encoding="utf-8")
-    require(f"source_commit={SOURCE_COMMIT}" in text, f"{relative}: source commit drift")
+    fields: dict[str, list[str]] = {}
+    for line in text.splitlines():
+        if "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        if not key or not all(character.isalnum() or character == "_" for character in key):
+            continue
+        fields.setdefault(key, []).append(value)
+
+    source_commits = fields.get("source_commit", [])
+    require(
+        source_commits == [SOURCE_COMMIT],
+        f"{relative}: source commit drift",
+    )
     require("rustc 1.85.1" in text, f"{relative}: pinned Rust compiler missing")
     require("nvcc_path=/usr/bin/nvcc" in text, f"{relative}: CUDA compiler path drift")
     require(
