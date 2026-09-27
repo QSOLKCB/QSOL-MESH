@@ -202,6 +202,48 @@ class RetainedFullRunEvidenceRegressionTest(unittest.TestCase):
                             message,
                         )
 
+    def test_cuda_block_count_matches_retained_canonical_launch(self) -> None:
+        cases = (
+            (
+                "phase1/cuda-verify-100000.json",
+                retained.verify_phase1,
+                ("effective_execution",),
+                "phase1 CUDA effective execution drift",
+            ),
+            (
+                "phase1/static-verify-100000-40000.json",
+                retained.verify_phase1,
+                ("effective_execution", "cuda"),
+                "phase1 split CUDA launch geometry drift",
+            ),
+            (
+                "phase1/concurrent-verify-100000-40000.json",
+                retained.verify_phase1,
+                ("effective_execution", "cuda"),
+                "phase1 split CUDA launch geometry drift",
+            ),
+            (
+                "phase4/timing.json",
+                retained.verify_phase4,
+                ("effective_execution",),
+                "phase4 timing effective CUDA execution drift",
+            ),
+        )
+        for relative, verifier, path, message in cases:
+            with self.subTest(relative=relative):
+                def mutate(receipt: dict, *, path=path) -> None:
+                    node = receipt
+                    for key in path:
+                        node = node[key]
+                    node["blocks"] = 1
+
+                self._mutate_json_and_reject(
+                    relative,
+                    mutate,
+                    verifier,
+                    message,
+                )
+
     def test_cuda_thread_width_matches_canonical_worker(self) -> None:
         cases = (
             (
@@ -419,6 +461,39 @@ class RetainedFullRunEvidenceRegressionTest(unittest.TestCase):
                     retained.verify_phase4,
                     message,
                 )
+
+    def test_split_range_boundaries_reject_boolean_coercion(self) -> None:
+        cases = (
+            ("cpu", "range_start", False, "phase1 CPU split range drift"),
+            ("cpu", "range_end", True, "phase1 CPU split range drift"),
+            ("cuda", "range_start", True, "phase1 CUDA split range drift"),
+            ("cuda", "range_end", True, "phase1 CUDA split range drift"),
+        )
+        for relative in (
+            "phase1/static-verify-100000-40000.json",
+            "phase1/concurrent-verify-100000-40000.json",
+        ):
+            for partition, field, value, message in cases:
+                with self.subTest(
+                    relative=relative,
+                    partition=partition,
+                    field=field,
+                ):
+                    def mutate(
+                        receipt: dict,
+                        *,
+                        partition=partition,
+                        field=field,
+                        value=value,
+                    ) -> None:
+                        receipt["effective_execution"][partition][field] = value
+
+                    self._mutate_json_and_reject(
+                        relative,
+                        mutate,
+                        retained.verify_phase1,
+                        message,
+                    )
 
     def test_split_effective_workers_match_deterministic_execution(self) -> None:
         for relative in (
@@ -669,6 +744,18 @@ class RetainedFullRunEvidenceRegressionTest(unittest.TestCase):
             retained.verify_phase4,
             "phase4: calibration candidate geometry drift",
         )
+
+    def test_phase5_completed_phase_count_requires_integer(self) -> None:
+        for value in (3.0, True):
+            with self.subTest(value=value):
+                self._mutate_json_and_reject(
+                    "phase5/adaptive.json",
+                    lambda receipt, value=value: receipt["effective_execution"].update(
+                        completed_phases=value
+                    ),
+                    retained.verify_phase5,
+                    "phase5 requested/completed/retained phase count mismatch",
+                )
 
     def test_phase5_plan_change_count_rejects_boolean_coercion(self) -> None:
         self._mutate_json_and_reject(
