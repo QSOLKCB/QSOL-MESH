@@ -14,6 +14,7 @@ CUDA_60K_CHECKSUM = "4259e0fe55e02c8d"
 U128_MAX = (1 << 128) - 1
 U64_MAX = (1 << 64) - 1
 U32_MAX = (1 << 32) - 1
+CUDA_RETAINED_BLOCKS = 144
 CUDA_THREADS_PER_BLOCK = 256
 SMOKE_SEED = 0x4D45_5348_5F53_4D4B
 
@@ -155,11 +156,15 @@ def verify_split_geometry(receipt: dict, *, concurrent: bool) -> None:
         "phase1 split must contain two nonempty partitions",
     )
     require(
-        (cpu["range_start"], cpu["range_end"]) == (0, cpu_items),
+        type(cpu["range_start"]) is int
+        and type(cpu["range_end"]) is int
+        and (cpu["range_start"], cpu["range_end"]) == (0, cpu_items),
         "phase1 CPU split range drift",
     )
     require(
-        (cuda["range_start"], cuda["range_end"]) == (cpu_items, items),
+        type(cuda["range_start"]) is int
+        and type(cuda["range_end"]) is int
+        and (cuda["range_start"], cuda["range_end"]) == (cpu_items, items),
         "phase1 CUDA split range drift",
     )
     require(
@@ -178,7 +183,7 @@ def verify_split_geometry(receipt: dict, *, concurrent: bool) -> None:
     )
     require(
         type(cuda["blocks"]) is int
-        and 1 <= cuda["blocks"] <= U32_MAX
+        and cuda["blocks"] == CUDA_RETAINED_BLOCKS
         and type(cuda["threads_per_block"]) is int
         and cuda["threads_per_block"] == CUDA_THREADS_PER_BLOCK,
         "phase1 split CUDA launch geometry drift",
@@ -320,7 +325,7 @@ def verify_phase1() -> None:
         effective["backend"] == "nvidia-cuda"
         and effective["device_ordinal"] == cuda["requested_configuration"]["device_ordinal"]
         and type(effective["blocks"]) is int
-        and 1 <= effective["blocks"] <= U32_MAX
+        and effective["blocks"] == CUDA_RETAINED_BLOCKS
         and type(effective["threads_per_block"]) is int
         and effective["threads_per_block"] == CUDA_THREADS_PER_BLOCK
         and effective["reduction"] == "device-strided-local-sums-plus-atomicAdd-u64",
@@ -1137,7 +1142,7 @@ def verify_phase4() -> None:
         and timing_effective["device_ordinal"]
         == timing["requested_configuration"]["device_ordinal"]
         and type(timing_effective["blocks"]) is int
-        and 1 <= timing_effective["blocks"] <= U32_MAX
+        and timing_effective["blocks"] == CUDA_RETAINED_BLOCKS
         and type(timing_effective["threads_per_block"]) is int
         and timing_effective["threads_per_block"] == CUDA_THREADS_PER_BLOCK
         and timing_effective["reduction"]
@@ -1352,7 +1357,8 @@ def verify_phase5() -> None:
         (2, 10000, "7cf0a1247592acff"),
     ]
     require(
-        effective["completed_phases"] == len(expected)
+        type(effective["completed_phases"]) is int
+        and effective["completed_phases"] == len(expected)
         and effective["completed_phases"] == len(request["phase_items"])
         and len(effective["phases"]) == len(expected),
         "phase5 requested/completed/retained phase count mismatch",
