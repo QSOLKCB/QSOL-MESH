@@ -154,6 +154,61 @@ class RetainedFullRunEvidenceRegressionTest(unittest.TestCase):
                     finally:
                         retained.EVIDENCE = original
 
+    def test_cuda_device_ordinals_require_exact_u32_identity(self) -> None:
+        cases = (
+            (
+                "phase1/cuda-verify-100000.json",
+                retained.verify_phase1,
+                ("requested_configuration", "device_ordinal"),
+                "phase1 CUDA requested device ordinal drift",
+            ),
+            (
+                "phase1/cuda-verify-100000.json",
+                retained.verify_phase1,
+                ("observed_topology", "device_ordinal"),
+                "phase1 CUDA observed device ordinal drift",
+            ),
+            (
+                "phase1/cuda-verify-100000.json",
+                retained.verify_phase1,
+                ("effective_execution", "device_ordinal"),
+                "phase1 CUDA effective device ordinal drift",
+            ),
+            (
+                "phase4/timing.json",
+                retained.verify_phase4,
+                ("requested_configuration", "device_ordinal"),
+                "phase4 timing requested device ordinal drift",
+            ),
+            (
+                "phase4/timing.json",
+                retained.verify_phase4,
+                ("observed_topology", "device_ordinal"),
+                "phase4 timing observed device ordinal drift",
+            ),
+            (
+                "phase4/timing.json",
+                retained.verify_phase4,
+                ("effective_execution", "device_ordinal"),
+                "phase4 timing effective device ordinal drift",
+            ),
+        )
+        for relative, verifier, path, message in cases:
+            for value in (False, 0.0, 1):
+                with self.subTest(relative=relative, path=path, value=value):
+                    def mutate(receipt: dict, *, path=path, value=value) -> None:
+                        node = receipt
+                        for key in path[:-1]:
+                            node = node[key]
+                        node[path[-1]] = value
+
+                    self._mutate_json_and_reject(
+                        relative,
+                        mutate,
+                        verifier,
+                        message + "|request drift|topology drift|effective execution drift",
+                    )
+
     def test_cuda_launch_geometry_rejects_overflow_and_booleans(self) -> None:
         cases = (
             (
