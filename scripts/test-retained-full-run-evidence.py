@@ -368,6 +368,31 @@ class RetainedFullRunEvidenceRegressionTest(unittest.TestCase):
                     message,
                 )
 
+    def test_phase3_topology_device_ordinal_requires_exact_u32(self) -> None:
+        for relative in ("phase3/one-chunk.json", "phase3/multi-chunk.json"):
+            for value in (False, 0.0, 1):
+                with self.subTest(relative=relative, value=value):
+                    self._mutate_json_and_reject(
+                        relative,
+                        lambda receipt, value=value: receipt["observed_topology"].update(
+                            device_ordinal=value
+                        ),
+                        retained.verify_phase3,
+                        "phase3 observed CUDA device ordinal drift|phase3 observed CUDA topology drift",
+                    )
+
+    def test_phase4_timing_activation_requires_boolean_true(self) -> None:
+        for value in (1, 1.0, "true"):
+            with self.subTest(value=value):
+                self._mutate_json_and_reject(
+                    "phase4/timing.json",
+                    lambda receipt, value=value: receipt["requested_configuration"].update(
+                        timing=value
+                    ),
+                    retained.verify_phase4,
+                    "phase4 timing activation flag drift",
+                )
+
     def test_stream_numeric_fields_reject_boolean_coercion(self) -> None:
         cases = (
             (("effective_execution", "effective_chunk_items"), "phase3 effective chunk geometry drift"),
