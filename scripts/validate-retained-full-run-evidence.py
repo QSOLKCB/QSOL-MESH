@@ -149,6 +149,10 @@ def verify_split_geometry(receipt: dict, *, concurrent: bool) -> None:
         "phase1 split observed CUDA device ordinal drift",
     )
     require(
+        topology.get("accelerator_observed") is True,
+        "phase1 split accelerator-observed claim drift",
+    )
+    require(
         topology
         == {
             "available_cpu_workers": 32,
@@ -358,6 +362,10 @@ def verify_phase1() -> None:
         "phase1 CUDA observed device ordinal drift",
     )
     require(
+        topo.get("accelerator_observed") is True,
+        "phase1 CUDA accelerator-observed claim drift",
+    )
+    require(
         topo
         == {
             "accelerator_observed": True,
@@ -555,6 +563,12 @@ def verify_phase1() -> None:
     )
     dispatch = effective["dispatch_contract"]
     require(
+        dispatch.get("cpu_task_spawned_before_cuda_call") is True
+        and dispatch.get("cpu_joined_after_cuda_call_return") is True
+        and dispatch.get("kernel_overlap_measured") is False,
+        "phase1 concurrent dispatch Boolean evidence drift",
+    )
+    require(
         dispatch
         == {
             "cpu_task_spawned_before_cuda_call": True,
@@ -628,6 +642,10 @@ def verify_stream_receipt(
         type(stream_topology.get("device_ordinal")) is int
         and 0 <= stream_topology["device_ordinal"] <= U32_MAX,
         "phase3 observed CUDA device ordinal drift",
+    )
+    require(
+        stream_topology.get("accelerator_observed") is True,
+        "phase3 accelerator-observed claim drift",
     )
     require(
         stream_topology
@@ -966,6 +984,10 @@ def verify_calibration_receipt(
         f"{context}: calibration topology device ordinal drift",
     )
     require(
+        topology.get("accelerator_observed") is True,
+        f"{context}: calibration accelerator-observed claim drift",
+    )
+    require(
         topology
         == {
             "available_cpu_workers": 32,
@@ -1241,6 +1263,10 @@ def verify_phase4() -> None:
         "phase4 timing observed device ordinal drift",
     )
     require(
+        timing_topology.get("accelerator_observed") is True,
+        "phase4 timing accelerator-observed claim drift",
+    )
+    require(
         timing_topology
         == {
             "accelerator_observed": True,
@@ -1394,6 +1420,10 @@ def verify_phase5() -> None:
         receipt["workload_identity"]
         == {"workload_id": "mesh-smoke-phases-v1", "workload_contract_version": "1.0.0"},
         "phase5 workload identity drift",
+    )
+    require(
+        receipt["observed_topology"].get("accelerator_observed") is True,
+        "phase5 accelerator-observed claim drift",
     )
     require(
         receipt["observed_topology"]
