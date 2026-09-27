@@ -393,6 +393,46 @@ class RetainedFullRunEvidenceRegressionTest(unittest.TestCase):
             "phase4 timing clock source drift",
         )
 
+    def test_calibration_work_units_require_exact_u64(self) -> None:
+        cases = (
+            ("observations", 0, 10000.0, "phase4 calibration candidate 0: invalid observation work size"),
+            ("observations", 0, True, "phase4 calibration candidate 0: invalid observation work size"),
+            ("full_work_confirmation", 0, 100000.0, "phase4 confirmation candidate 0: invalid observation work size"),
+            ("full_work_confirmation", 0, True, "phase4 confirmation candidate 0: invalid observation work size"),
+        )
+        for collection, index, value, message in cases:
+            with self.subTest(collection=collection, value=value):
+                def mutate(
+                    receipt: dict,
+                    *,
+                    collection=collection,
+                    index=index,
+                    value=value,
+                ) -> None:
+                    receipt["calibration"][collection][index]["work_units"] = value
+
+                self._mutate_json_and_reject(
+                    "phase4/calibration.json",
+                    mutate,
+                    retained.verify_phase4,
+                    message,
+                )
+
+    def test_calibration_request_work_fields_require_exact_integers(self) -> None:
+        for field, value in (
+            ("calibration_items", 10000.0),
+            ("full_work_items", 100000.0),
+        ):
+            with self.subTest(field=field):
+                self._mutate_json_and_reject(
+                    "phase4/calibration.json",
+                    lambda receipt, field=field, value=value: receipt["requested_configuration"].update(
+                        {field: value}
+                    ),
+                    retained.verify_phase4,
+                    "phase4: calibration work bounds drift",
+                )
+
     def test_calibration_candidate_ids_reject_boolean_coercion(self) -> None:
         cases = (
             (
@@ -461,6 +501,44 @@ class RetainedFullRunEvidenceRegressionTest(unittest.TestCase):
                     retained.verify_phase4,
                     message,
                 )
+
+    def test_split_requested_workers_require_exact_integer(self) -> None:
+        for relative in (
+            "phase1/static-verify-100000-40000.json",
+            "phase1/concurrent-verify-100000-40000.json",
+        ):
+            for value in (8.0, True):
+                with self.subTest(relative=relative, value=value):
+                    self._mutate_json_and_reject(
+                        relative,
+                        lambda receipt, value=value: receipt["effective_execution"]["cpu"].update(
+                            requested_workers=value
+                        ),
+                        retained.verify_phase1,
+                        "phase1 split requested CPU workers drift",
+                    )
+
+    def test_split_request_numeric_fields_require_exact_integers(self) -> None:
+        cases = (
+            ("items", 100000.0),
+            ("cpu_items", 40000.0),
+            ("cpu_workers", 8.0),
+            ("device_ordinal", False),
+        )
+        for relative in (
+            "phase1/static-verify-100000-40000.json",
+            "phase1/concurrent-verify-100000-40000.json",
+        ):
+            for field, value in cases:
+                with self.subTest(relative=relative, field=field):
+                    self._mutate_json_and_reject(
+                        relative,
+                        lambda receipt, field=field, value=value: receipt["requested_configuration"].update(
+                            {field: value}
+                        ),
+                        retained.verify_phase1,
+                        "phase1 split request numeric field drift",
+                    )
 
     def test_split_range_boundaries_reject_boolean_coercion(self) -> None:
         cases = (
