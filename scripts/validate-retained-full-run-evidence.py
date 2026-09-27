@@ -137,6 +137,13 @@ def verify_split_geometry(receipt: dict, *, concurrent: bool) -> None:
         "phase1 split CUDA device drift",
     )
     require(
+        type(cuda["blocks"]) is int
+        and cuda["blocks"] > 0
+        and type(cuda["threads_per_block"]) is int
+        and cuda["threads_per_block"] > 0,
+        "phase1 split CUDA launch geometry drift",
+    )
+    require(
         effective["reduction"] == "partition-order-wrapping-u64",
         "phase1 split reduction drift",
     )
@@ -187,6 +194,23 @@ def verify_phase1() -> None:
             "reduction": "worker-index-order-wrapping-u64",
         },
         "phase1 CPU effective execution drift",
+    )
+    require(
+        cpu["memory_plan"]
+        == {
+            "domains": ["host-pageable"],
+            "per_item_materialization": False,
+            "temporary_state": "O(workers)",
+        },
+        "phase1 CPU memory plan drift",
+    )
+    require(
+        cpu["calibration"] == {"performed": False},
+        "phase1 CPU calibration boundary drift",
+    )
+    require(
+        cpu["claim_boundary"] == "runtime-bring-up-only-not-performance-evidence",
+        "phase1 CPU claim boundary drift",
     )
     require(
         cpu["verification"]
@@ -847,6 +871,69 @@ def verify_phase4() -> None:
         "phase4 timing request drift",
     )
     require(
+        timing["source_identity"]
+        == {
+            "runtime": "qsol-mesh-cli",
+            "executor_id": "qsol-mesh-cuda-smoke-v1",
+            "worker_protocol": "qsol.mesh.cuda-smoke-worker.v2",
+            "base_executor_contract": "qsol.mesh.nvidia-executor-contract.v1",
+        },
+        "phase4 timing source identity drift",
+    )
+    require(
+        timing["workload_identity"]
+        == {"workload_id": "mesh-smoke-v1", "workload_contract_version": "1.0.0"},
+        "phase4 timing workload identity drift",
+    )
+    timing_topology = timing["observed_topology"]
+    require(
+        timing_topology
+        == {
+            "accelerator_observed": True,
+            "backend": "nvidia-cuda",
+            "device_ordinal": timing["requested_configuration"]["device_ordinal"],
+            "compute_major": 12,
+            "compute_minor": 0,
+            "cuda_runtime_version": 12040,
+            "cuda_driver_version": 13020,
+            "evidence_source": "cuda-helper-process",
+        },
+        "phase4 timing CUDA topology drift",
+    )
+    timing_effective = timing["effective_execution"]
+    require(
+        timing_effective["backend"] == "nvidia-cuda"
+        and timing_effective["device_ordinal"]
+        == timing["requested_configuration"]["device_ordinal"]
+        and type(timing_effective["blocks"]) is int
+        and timing_effective["blocks"] > 0
+        and type(timing_effective["threads_per_block"]) is int
+        and timing_effective["threads_per_block"] > 0
+        and timing_effective["reduction"]
+        == "device-strided-local-sums-plus-atomicAdd-u64",
+        "phase4 timing effective CUDA execution drift",
+    )
+    require(
+        timing["memory_plan"]
+        == {
+            "domains": ["accelerator-local", "host-pageable"],
+            "accelerator_checksum_buffer_bytes": 8,
+            "device_to_host_result_bytes": 8,
+            "per_item_materialization": False,
+        },
+        "phase4 timing memory plan drift",
+    )
+    require(
+        timing["calibration"]
+        == {"performed": False, "placement_decision_influenced": False},
+        "phase4 timing calibration boundary drift",
+    )
+    require(
+        timing["claim_boundary"]
+        == "experimental-nvidia-cuda-smoke-separated-timing-evidence-not-placement-not-performance-evidence",
+        "phase4 timing claim boundary drift",
+    )
+    require(
         timing["verification"]["verified"] is True
         and timing["verification"]["checksum"] == FULL_CHECKSUM
         and timing["verification"]["reference"] == FULL_CHECKSUM,
@@ -1047,23 +1134,43 @@ def verify_phase5() -> None:
             },
             context=f"phase5 phase {index}",
         )
-        selected = calibration_receipt["effective_execution"]["selected_candidate_id"]
-        expected_plan_changed = previous_selected is not None and selected != previous_selected
+        selected_id = calibration_receipt["effective_execution"]["selected_candidate_id"]
+        selected_candidate = next(
+            candidate
+            for candidate in calibration_receipt["calibration"]["candidates"]
+            if candidate["id"] == selected_id
+        )
+        expected_plan_changed = (
+            previous_selected is not None and selected_candidate != previous_selected
+        )
         require(
             phase["plan_changed"] is expected_plan_changed,
             "phase5 per-phase plan change flag drift",
         )
         observed_plan_changes += int(expected_plan_changed)
-        previous_selected = selected
+        previous_selected = selected_candidate
+
+        backend = selected_candidate["backend"]
+        expected_cpu_items = {
+            "cpu": items,
+            "accelerator": 0,
+            "heterogeneous-static": items // 2,
+        }[backend]
+        expected_cuda_items = items - expected_cpu_items
+        expected_requested_workers = selected_candidate["cpu_workers"]
+        expected_effective_workers = min(
+            expected_requested_workers,
+            expected_cpu_items,
+        )
 
         execution = phase["execution"]
         require(
-            execution["backend"] == "cpu"
-            and execution["requested_cpu_workers"] == 1
-            and execution["effective_cpu_workers"] == 1
-            and execution["cpu_items"] == items
-            and execution["cuda_items"] == 0,
-            "phase5 execution backend drift",
+            execution["backend"] == backend
+            and execution["requested_cpu_workers"] == expected_requested_workers
+            and execution["effective_cpu_workers"] == expected_effective_workers
+            and execution["cpu_items"] == expected_cpu_items
+            and execution["cuda_items"] == expected_cuda_items,
+            "phase5 execution does not match selected plan",
         )
         require(
             execution["verified"] is True
