@@ -418,7 +418,10 @@ class RetainedFullRunEvidenceRegressionTest(unittest.TestCase):
                             relative,
                             mutate,
                             retained.verify_phase1,
-                            message + "|phase1 split observed/effective CUDA device drift|phase1 split CUDA device drift",
+                            message
+                            + "|phase1 split observed CUDA topology drift"
+                            + "|phase1 split observed/effective CUDA device drift"
+                            + "|phase1 split CUDA device drift",
                         )
 
     def test_phase1_cpu_request_geometry_requires_exact_integers(self) -> None:
