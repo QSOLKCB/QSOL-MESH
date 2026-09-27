@@ -116,6 +116,139 @@ class RetainedFullRunEvidenceRegressionTest(unittest.TestCase):
             finally:
                 retained.EVIDENCE = original
 
+    def test_environment_nvcc_path_cannot_be_shadowed_or_duplicated(self) -> None:
+        for relative in (
+            "phase1/environment.txt",
+            "phase3/environment.txt",
+            "phase4/environment.txt",
+            "phase5/environment.txt",
+        ):
+            for duplicate in (False, True):
+                with (
+                    self.subTest(relative=relative, duplicate=duplicate),
+                    tempfile.TemporaryDirectory() as temporary,
+                ):
+                    root = Path(temporary) / "evidence"
+                    shutil.copytree(retained.EVIDENCE, root)
+                    path = root / relative
+                    lines = path.read_text(encoding="utf-8").splitlines()
+                    indexes = [
+                        index
+                        for index, line in enumerate(lines)
+                        if line.startswith("nvcc_path=")
+                    ]
+                    self.assertEqual(len(indexes), 1)
+
+                    if duplicate:
+                        lines.append("nvcc_path=/usr/bin/nvcc")
+                    else:
+                        lines[indexes[0]] = "nvcc_path=/usr/bin/gcc"
+                        lines.append("capture_note=nvcc_path=/usr/bin/nvcc")
+
+                    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+                    original = retained.EVIDENCE
+                    retained.EVIDENCE = root
+                    try:
+                        with self.assertRaisesRegex(SystemExit, "CUDA compiler path drift"):
+                            retained.verify_environment(relative)
+                    finally:
+                        retained.EVIDENCE = original
+
+    def test_cuda_launch_geometry_rejects_overflow_and_booleans(self) -> None:
+        cases = (
+            (
+                "phase1/cuda-verify-100000.json",
+                retained.verify_phase1,
+                ("effective_execution",),
+                "phase1 CUDA effective execution drift",
+            ),
+            (
+                "phase1/static-verify-100000-40000.json",
+                retained.verify_phase1,
+                ("effective_execution", "cuda"),
+                "phase1 split CUDA launch geometry drift",
+            ),
+            (
+                "phase1/concurrent-verify-100000-40000.json",
+                retained.verify_phase1,
+                ("effective_execution", "cuda"),
+                "phase1 split CUDA launch geometry drift",
+            ),
+            (
+                "phase4/timing.json",
+                retained.verify_phase4,
+                ("effective_execution",),
+                "phase4 timing effective CUDA execution drift",
+            ),
+        )
+        for relative, verifier, path, message in cases:
+            for field in ("blocks", "threads_per_block"):
+                for value in (retained.U32_MAX + 1, True):
+                    with self.subTest(
+                        relative=relative,
+                        field=field,
+                        value=value,
+                    ):
+                        def mutate(receipt: dict, *, field=field, value=value, path=path) -> None:
+                            node = receipt
+                            for key in path:
+                                node = node[key]
+                            node[field] = value
+
+                        self._mutate_json_and_reject(
+                            relative,
+                            mutate,
+                            verifier,
+                            message,
+                        )
+
+    def test_stream_numeric_fields_reject_boolean_coercion(self) -> None:
+        cases = (
+            (("effective_execution", "effective_chunk_items"), "phase3 effective chunk geometry drift"),
+            (("effective_execution", "chunk_count"), "phase3 chunk count drift"),
+            (("effective_execution", "event_records"), "phase3 CUDA event count drift"),
+            (("memory_plan", "host_pinned_peak_bytes"), "phase3 peak memory geometry drift"),
+            (("memory_plan", "accelerator_peak_bytes"), "phase3 peak memory geometry drift"),
+            (("memory_plan", "partial_bytes"), "phase3 partial byte width drift"),
+            (("memory_plan", "pinned_staging_allocations"), "phase3 reusable allocation geometry drift"),
+            (("memory_plan", "pinned_partial_allocations"), "phase3 reusable allocation geometry drift"),
+            (("memory_plan", "device_pool_allocations"), "phase3 reusable allocation geometry drift"),
+            (("memory_plan", "device_partial_allocations"), "phase3 reusable allocation geometry drift"),
+        )
+        for relative in ("phase3/one-chunk.json", "phase3/multi-chunk.json"):
+            for path, message in cases:
+                with self.subTest(relative=relative, path=path):
+                    def mutate(receipt: dict, *, path=path) -> None:
+                        node = receipt
+                        for key in path[:-1]:
+                            node = node[key]
+                        node[path[-1]] = True
+
+                    self._mutate_json_and_reject(
+                        relative,
+                        mutate,
+                        retained.verify_phase3,
+                        message,
+                    )
+
+    def test_stream_request_numeric_fields_reject_booleans(self) -> None:
+        for field in (
+            "items",
+            "requested_chunk_items",
+            "host_pinned_limit_bytes",
+            "accelerator_limit_bytes",
+            "device_ordinal",
+        ):
+            with self.subTest(field=field):
+                self._mutate_json_and_reject(
+                    "phase3/one-chunk.json",
+                    lambda receipt, field=field: receipt["requested_configuration"].update(
+                        {field: True}
+                    ),
+                    retained.verify_phase3,
+                    "phase3 stream request drift|phase3 invalid retained stream bounds",
+                )
+
     def test_phase1_cpu_topology_mutation(self) -> None:
         self._mutate_json_and_reject(
             "phase1/cpu-verify-100000.json",
