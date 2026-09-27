@@ -165,9 +165,10 @@ def verify_split_geometry(receipt: dict, *, concurrent: bool) -> None:
         cpu["requested_workers"] == request["cpu_workers"],
         "phase1 split requested CPU workers drift",
     )
+    expected_cpu_workers = min(request["cpu_workers"], cpu_items)
     require(
         type(cpu["effective_workers"]) is int
-        and 1 <= cpu["effective_workers"] <= min(request["cpu_workers"], cpu_items),
+        and cpu["effective_workers"] == expected_cpu_workers,
         "phase1 split effective CPU workers drift",
     )
     require(
@@ -773,6 +774,12 @@ def validate_cost_observation(
             and observation["transfer_ns"] <= U64_MAX,
             f"{context}: accelerator timing component width drift",
         )
+        accelerator_total_max = 2 * U64_MAX
+        require(
+            observation["service_ns"] <= accelerator_total_max
+            and observation["total_ns"] <= accelerator_total_max,
+            f"{context}: accelerator service/total provenance width drift",
+        )
     elif backend == "heterogeneous-static":
         require(
             observation["setup_ns"] == 0 and observation["transfer_ns"] == 0,
@@ -1346,7 +1353,9 @@ def verify_phase5() -> None:
         "phase5 requested/completed/retained phase count mismatch",
     )
     require(
-        effective["plan_changes"] == 0
+        type(effective["plan_changes"]) is int
+        and 0 <= effective["plan_changes"] <= max(0, len(effective["phases"]) - 1)
+        and effective["plan_changes"] == 0
         and effective["within_phase_replanning"] is False,
         "phase5 adaptive boundary drift",
     )
@@ -1390,11 +1399,16 @@ def verify_phase5() -> None:
                 + calibration_receipt["calibration"]["full_work_confirmation"]
             )
         ]
+        nested_sum = sum(nested_totals)
+        repeat_lower_bound_factor = request["repeats"] - request["repeats"] // 2
         require(
             nested_totals
-            and sum(nested_totals) <= U128_MAX
-            and phase["calibration_host_ns"] >= sum(nested_totals),
-            f"phase5 phase {index}: calibration host duration shorter than sequential nested measurements",
+            and nested_sum <= U128_MAX
+            and repeat_lower_bound_factor > 0
+            and nested_sum <= U128_MAX // repeat_lower_bound_factor
+            and phase["calibration_host_ns"]
+            >= nested_sum * repeat_lower_bound_factor,
+            f"phase5 phase {index}: calibration host duration shorter than repeat-aware sequential nested measurements",
         )
         selected_id = calibration_receipt["effective_execution"]["selected_candidate_id"]
         selected_candidate = next(
