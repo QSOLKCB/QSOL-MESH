@@ -378,6 +378,21 @@ class RetainedFullRunEvidenceRegressionTest(unittest.TestCase):
                     message,
                 )
 
+    def test_split_effective_workers_match_deterministic_execution(self) -> None:
+        for relative in (
+            "phase1/static-verify-100000-40000.json",
+            "phase1/concurrent-verify-100000-40000.json",
+        ):
+            with self.subTest(relative=relative):
+                self._mutate_json_and_reject(
+                    relative,
+                    lambda receipt: receipt["effective_execution"]["cpu"].update(
+                        effective_workers=1
+                    ),
+                    retained.verify_phase1,
+                    "phase1 split effective CPU workers drift",
+                )
+
     def test_calibration_effective_workers_match_deterministic_execution(self) -> None:
         cases = (
             (
@@ -406,6 +421,38 @@ class RetainedFullRunEvidenceRegressionTest(unittest.TestCase):
                     mutate,
                     retained.verify_phase4,
                     message,
+                )
+
+    def test_accelerator_service_and_total_stay_within_formula_width(self) -> None:
+        for mode in ("service", "total"):
+            with self.subTest(mode=mode):
+                def mutate(receipt: dict, *, mode=mode) -> None:
+                    observation = next(
+                        observation
+                        for observation in receipt["calibration"]["observations"]
+                        if observation["candidate_id"] == 2
+                    )
+                    limit = 2 * retained.U64_MAX
+                    if mode == "service":
+                        observation["service_ns"] = limit + 1
+                        observation["total_ns"] = (
+                            observation["service_ns"]
+                            + observation["setup_ns"]
+                            + observation["transfer_ns"]
+                        )
+                    else:
+                        observation["total_ns"] = limit + 1
+                        observation["service_ns"] = (
+                            observation["total_ns"]
+                            - observation["setup_ns"]
+                            - observation["transfer_ns"]
+                        )
+
+                self._mutate_json_and_reject(
+                    "phase4/calibration.json",
+                    mutate,
+                    retained.verify_phase4,
+                    "phase4 calibration candidate 2: accelerator service/total provenance width drift",
                 )
 
     def test_accelerator_timing_components_stay_within_u64(self) -> None:
@@ -477,8 +524,8 @@ class RetainedFullRunEvidenceRegressionTest(unittest.TestCase):
                     "phase5 phase 0: invalid execution_host_ns",
                 )
 
-    def test_phase5_outer_calibration_duration_covers_sequential_nested_measurements(self) -> None:
-        for mode in ("one-ns", "max-only"):
+    def test_phase5_outer_calibration_duration_covers_repeat_aware_sequential_measurements(self) -> None:
+        for mode in ("one-ns", "max-only", "median-sum-only"):
             with self.subTest(mode=mode):
                 def mutate(receipt: dict, *, mode=mode) -> None:
                     phase = receipt["effective_execution"]["phases"][0]
@@ -486,18 +533,19 @@ class RetainedFullRunEvidenceRegressionTest(unittest.TestCase):
                         phase["calibration_receipt"]["calibration"]["observations"]
                         + phase["calibration_receipt"]["calibration"]["full_work_confirmation"]
                     )
+                    totals = [observation["total_ns"] for observation in nested]
                     if mode == "one-ns":
                         phase["calibration_host_ns"] = 1
+                    elif mode == "max-only":
+                        phase["calibration_host_ns"] = max(totals)
                     else:
-                        phase["calibration_host_ns"] = max(
-                            observation["total_ns"] for observation in nested
-                        )
+                        phase["calibration_host_ns"] = sum(totals)
 
                 self._mutate_json_and_reject(
                     "phase5/adaptive.json",
                     mutate,
                     retained.verify_phase5,
-                    "phase5 phase 0: calibration host duration shorter than sequential nested measurements",
+                    "phase5 phase 0: calibration host duration shorter than repeat-aware sequential nested measurements",
                 )
 
     def test_phase4_calibration_candidate_geometry_mutation(self) -> None:
@@ -512,6 +560,14 @@ class RetainedFullRunEvidenceRegressionTest(unittest.TestCase):
             mutate,
             retained.verify_phase4,
             "phase4: calibration candidate geometry drift",
+        )
+
+    def test_phase5_plan_change_count_rejects_boolean_coercion(self) -> None:
+        self._mutate_json_and_reject(
+            "phase5/adaptive.json",
+            lambda receipt: receipt["effective_execution"].update(plan_changes=False),
+            retained.verify_phase5,
+            "phase5 adaptive boundary drift",
         )
 
     def test_phase5_cached_calibration_mutation(self) -> None:
