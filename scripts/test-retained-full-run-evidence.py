@@ -66,6 +66,56 @@ class RetainedFullRunEvidenceRegressionTest(unittest.TestCase):
                 finally:
                     retained.EVIDENCE = original
 
+    def test_environment_source_commit_field_cannot_be_shadowed(self) -> None:
+        for relative in (
+            "phase1/environment.txt",
+            "phase3/environment.txt",
+            "phase4/environment.txt",
+            "phase5/environment.txt",
+        ):
+            with self.subTest(relative=relative), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary) / "evidence"
+                shutil.copytree(retained.EVIDENCE, root)
+                path = root / relative
+                lines = path.read_text(encoding="utf-8").splitlines()
+                source_indexes = [
+                    index
+                    for index, line in enumerate(lines)
+                    if line.startswith("source_commit=")
+                ]
+                self.assertEqual(source_indexes, [0])
+                lines[0] = "source_commit=" + "0" * 40
+                lines.append(f"capture_note=source_commit={retained.SOURCE_COMMIT}")
+                path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+                original = retained.EVIDENCE
+                retained.EVIDENCE = root
+                try:
+                    with self.assertRaisesRegex(SystemExit, "source commit drift"):
+                        retained.verify_environment(relative)
+                finally:
+                    retained.EVIDENCE = original
+
+    def test_environment_duplicate_source_commit_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "evidence"
+            shutil.copytree(retained.EVIDENCE, root)
+            relative = "phase1/environment.txt"
+            path = root / relative
+            text = path.read_text(encoding="utf-8")
+            path.write_text(
+                text + f"source_commit={retained.SOURCE_COMMIT}\n",
+                encoding="utf-8",
+            )
+
+            original = retained.EVIDENCE
+            retained.EVIDENCE = root
+            try:
+                with self.assertRaisesRegex(SystemExit, "source commit drift"):
+                    retained.verify_environment(relative)
+            finally:
+                retained.EVIDENCE = original
+
     def test_phase1_cpu_topology_mutation(self) -> None:
         self._mutate_json_and_reject(
             "phase1/cpu-verify-100000.json",
