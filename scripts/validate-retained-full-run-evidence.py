@@ -299,6 +299,22 @@ def verify_phase1() -> None:
         "phase1 static schema drift",
     )
     require(
+        static["source_identity"]
+        == {
+            "runtime": "qsol-mesh-cli",
+            "split_id": "mesh-smoke-static-cpu-cuda-v1",
+            "split_schema": "qsol.mesh.static-split.v1",
+            "cuda_executor_id": "qsol-mesh-cuda-smoke-v1",
+            "cuda_worker_protocol": "qsol.mesh.cuda-smoke-range-worker.v1",
+        },
+        "phase1 static source identity drift",
+    )
+    require(
+        static["workload_identity"]
+        == {"workload_id": "mesh-smoke-v1", "workload_contract_version": "1.0.0"},
+        "phase1 static workload identity drift",
+    )
+    require(
         static["requested_configuration"]
         == {
             "command": "verify",
@@ -308,6 +324,23 @@ def verify_phase1() -> None:
             "device_ordinal": 0,
         },
         "phase1 static request drift",
+    )
+    require(
+        static["memory_plan"]
+        == {
+            "domains": ["host-pageable", "accelerator-local"],
+            "per_item_materialization": False,
+            "cpu_temporary_state": "O(cpu-workers)",
+            "accelerator_checksum_buffer_bytes": 8,
+            "device_to_host_result_bytes": 8,
+        },
+        "phase1 static memory plan drift",
+    )
+    require(static["calibration"] == {"performed": False}, "phase1 static calibration drift")
+    require(
+        static["claim_boundary"]
+        == "runtime-bring-up-static-cpu-cuda-sequential-not-concurrent-not-performance-evidence",
+        "phase1 static claim boundary drift",
     )
     effective = static["effective_execution"]
     require(
@@ -338,6 +371,22 @@ def verify_phase1() -> None:
         "phase1 concurrent schema drift",
     )
     require(
+        concurrent["source_identity"]
+        == {
+            "runtime": "qsol-mesh-cli",
+            "split_id": "mesh-smoke-concurrent-cpu-cuda-v1",
+            "split_schema": "qsol.mesh.concurrent-split.v1",
+            "cuda_executor_id": "qsol-mesh-cuda-smoke-v1",
+            "cuda_worker_protocol": "qsol.mesh.cuda-smoke-range-worker.v1",
+        },
+        "phase1 concurrent source identity drift",
+    )
+    require(
+        concurrent["workload_identity"]
+        == {"workload_id": "mesh-smoke-v1", "workload_contract_version": "1.0.0"},
+        "phase1 concurrent workload identity drift",
+    )
+    require(
         concurrent["requested_configuration"]
         == {
             "command": "verify",
@@ -347,6 +396,26 @@ def verify_phase1() -> None:
             "device_ordinal": 0,
         },
         "phase1 concurrent request drift",
+    )
+    require(
+        concurrent["memory_plan"]
+        == {
+            "domains": ["host-pageable", "accelerator-local"],
+            "per_item_materialization": False,
+            "cpu_temporary_state": "O(cpu-workers)",
+            "accelerator_checksum_buffer_bytes": 8,
+            "device_to_host_result_bytes": 8,
+        },
+        "phase1 concurrent memory plan drift",
+    )
+    require(
+        concurrent["calibration"] == {"performed": False},
+        "phase1 concurrent calibration drift",
+    )
+    require(
+        concurrent["claim_boundary"]
+        == "runtime-bring-up-concurrent-dispatch-fixed-split-not-kernel-overlap-measurement-not-performance-evidence",
+        "phase1 concurrent claim boundary drift",
     )
     effective = concurrent["effective_execution"]
     require(
@@ -370,9 +439,15 @@ def verify_phase1() -> None:
         "phase1 concurrent partition checksum drift",
     )
     require(
-        concurrent["verification"]["verified"] is True
-        and concurrent["verification"]["checksum"] == FULL_CHECKSUM
-        and concurrent["verification"]["reference"] == FULL_CHECKSUM,
+        concurrent["verification"]
+        == {
+            "kind": "partition-range-oracles-plus-full-scalar-reference",
+            "cpu_reference": CPU_40K_CHECKSUM,
+            "cuda_reference": CUDA_60K_CHECKSUM,
+            "checksum": FULL_CHECKSUM,
+            "reference": FULL_CHECKSUM,
+            "verified": True,
+        },
         "phase1 concurrent oracle drift",
     )
 
@@ -613,6 +688,10 @@ def validate_cost_observation(
             f"{context}: accelerator observation reports CPU workers",
         )
     elif backend == "heterogeneous-static":
+        require(
+            observation["setup_ns"] == 0 and observation["transfer_ns"] == 0,
+            f"{context}: heterogeneous observation has separately isolated setup/transfer cost",
+        )
         require(
             1 <= effective_workers <= candidate["cpu_workers"],
             f"{context}: heterogeneous effective workers exceed candidate",
@@ -941,6 +1020,28 @@ def verify_phase4() -> None:
     )
     values = timing["timing"]
     require(
+        values["clock_sources"]
+        == {
+            "launcher_total_ns": "rust-std-instant-monotonic",
+            "worker_total_ns": "cxx-std-steady-clock-monotonic",
+            "setup_host_ns": "cxx-std-steady-clock-monotonic",
+            "kernel_device_ns": "cuda-event-default-stream",
+            "transfer_host_ns": "cxx-std-steady-clock-monotonic",
+            "teardown_host_ns": "cxx-std-steady-clock-monotonic",
+            "verification_ns": "rust-std-instant-monotonic",
+        },
+        "phase4 timing clock source drift",
+    )
+    require(
+        values["synchronization"]
+        == {
+            "kernel": "cuda-event-start-kernel-event-stop-device-synchronize",
+            "transfer": "synchronous-cudaMemcpy-device-to-host-after-device-synchronize",
+            "host_destination": "pageable-stack-u64",
+        },
+        "phase4 timing synchronization drift",
+    )
+    require(
         values["cross_clock_additive_total"] is False,
         "phase4 cross-clock timing boundary drift",
     )
@@ -1151,6 +1252,10 @@ def verify_phase5() -> None:
         previous_selected = selected_candidate
 
         backend = selected_candidate["backend"]
+        require(
+            backend == "cpu",
+            "phase5 selected CUDA/heterogeneous execution lacks retained private execution provenance",
+        )
         expected_cpu_items = {
             "cpu": items,
             "accelerator": 0,
