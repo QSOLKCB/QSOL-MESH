@@ -107,7 +107,11 @@ def verify_environment(relative: str) -> None:
         f"{relative}: source commit drift",
     )
     require("rustc 1.85.1" in text, f"{relative}: pinned Rust compiler missing")
-    require("nvcc_path=/usr/bin/nvcc" in text, f"{relative}: CUDA compiler path drift")
+    nvcc_paths = fields.get("nvcc_path", [])
+    require(
+        nvcc_paths == ["/usr/bin/nvcc"],
+        f"{relative}: CUDA compiler path drift",
+    )
     require(
         "Cuda compilation tools, release 12.4, V12.4.131" in text,
         f"{relative}: CUDA toolkit drift",
@@ -172,9 +176,9 @@ def verify_split_geometry(receipt: dict, *, concurrent: bool) -> None:
     )
     require(
         type(cuda["blocks"]) is int
-        and cuda["blocks"] > 0
+        and 1 <= cuda["blocks"] <= U32_MAX
         and type(cuda["threads_per_block"]) is int
-        and cuda["threads_per_block"] > 0,
+        and 1 <= cuda["threads_per_block"] <= U32_MAX,
         "phase1 split CUDA launch geometry drift",
     )
     require(
@@ -314,9 +318,9 @@ def verify_phase1() -> None:
         effective["backend"] == "nvidia-cuda"
         and effective["device_ordinal"] == cuda["requested_configuration"]["device_ordinal"]
         and type(effective["blocks"]) is int
-        and effective["blocks"] > 0
+        and 1 <= effective["blocks"] <= U32_MAX
         and type(effective["threads_per_block"]) is int
-        and effective["threads_per_block"] > 0
+        and 1 <= effective["threads_per_block"] <= U32_MAX
         and effective["reduction"] == "device-strided-local-sums-plus-atomicAdd-u64",
         "phase1 CUDA effective execution drift",
     )
@@ -569,10 +573,16 @@ def verify_stream_receipt(
     pinned_limit = request["host_pinned_limit_bytes"]
     accelerator_limit = request["accelerator_limit_bytes"]
     require(
-        items > 0
-        and requested_chunk > 0
-        and pinned_limit > 8
-        and accelerator_limit > 8,
+        type(items) is int
+        and 0 < items <= U64_MAX
+        and type(requested_chunk) is int
+        and 0 < requested_chunk <= U64_MAX
+        and type(pinned_limit) is int
+        and 8 < pinned_limit <= U64_MAX
+        and type(accelerator_limit) is int
+        and 8 < accelerator_limit <= U64_MAX
+        and type(request["device_ordinal"]) is int
+        and 0 <= request["device_ordinal"] <= U32_MAX,
         "phase3 invalid retained stream bounds",
     )
     effective_chunk = min(
@@ -589,12 +599,18 @@ def verify_stream_receipt(
     effective = receipt["effective_execution"]
     require(effective["backend"] == "nvidia-cuda", "phase3 backend drift")
     require(
-        effective["effective_chunk_items"] == effective_chunk,
+        type(effective["effective_chunk_items"]) is int
+        and effective["effective_chunk_items"] == effective_chunk,
         "phase3 effective chunk geometry drift",
     )
-    require(effective["chunk_count"] == chunk_count, "phase3 chunk count drift")
     require(
-        effective["event_records"] == chunk_count * 3,
+        type(effective["chunk_count"]) is int
+        and effective["chunk_count"] == chunk_count,
+        "phase3 chunk count drift",
+    )
+    require(
+        type(effective["event_records"]) is int
+        and effective["event_records"] == chunk_count * 3,
         "phase3 CUDA event count drift",
     )
     require(
@@ -608,15 +624,24 @@ def verify_stream_receipt(
         "phase3 physical materialization claim missing",
     )
     require(
-        memory["host_pinned_peak_bytes"] == peak_bytes
+        type(memory["host_pinned_peak_bytes"]) is int
+        and memory["host_pinned_peak_bytes"] == peak_bytes
+        and type(memory["accelerator_peak_bytes"]) is int
         and memory["accelerator_peak_bytes"] == peak_bytes,
         "phase3 peak memory geometry drift",
     )
-    require(memory["partial_bytes"] == 8, "phase3 partial byte width drift")
     require(
-        memory["pinned_staging_allocations"] == 1
+        type(memory["partial_bytes"]) is int and memory["partial_bytes"] == 8,
+        "phase3 partial byte width drift",
+    )
+    require(
+        type(memory["pinned_staging_allocations"]) is int
+        and memory["pinned_staging_allocations"] == 1
+        and type(memory["pinned_partial_allocations"]) is int
         and memory["pinned_partial_allocations"] == 1
+        and type(memory["device_pool_allocations"]) is int
         and memory["device_pool_allocations"] == 1
+        and type(memory["device_partial_allocations"]) is int
         and memory["device_partial_allocations"] == 1,
         "phase3 reusable allocation geometry drift",
     )
@@ -1041,9 +1066,9 @@ def verify_phase4() -> None:
         and timing_effective["device_ordinal"]
         == timing["requested_configuration"]["device_ordinal"]
         and type(timing_effective["blocks"]) is int
-        and timing_effective["blocks"] > 0
+        and 1 <= timing_effective["blocks"] <= U32_MAX
         and type(timing_effective["threads_per_block"]) is int
-        and timing_effective["threads_per_block"] > 0
+        and 1 <= timing_effective["threads_per_block"] <= U32_MAX
         and timing_effective["reduction"]
         == "device-strided-local-sums-plus-atomicAdd-u64",
         "phase4 timing effective CUDA execution drift",
